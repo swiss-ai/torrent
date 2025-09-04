@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 import stat
 import time
+import aiohttp
+import asyncio
 import logging
 import subprocess
 from jinja2 import Template
@@ -55,10 +57,6 @@ class Launcher:
         )
         job_id = self.submit_job(job_dir)
 
-        self.wait_for_job(job_dir)
-
-        nodes_ids, workers_head_ids = self.parse_job_logs(job_dir)
-
         return ModelInstance(
             model_config=model_config,
             job_id=job_id,
@@ -66,9 +64,17 @@ class Launcher:
             start_time=start_time,
             duration=duration,
             port=serving_config.port,
-            nodes_ids=nodes_ids,
-            workers_head_ids=workers_head_ids,
         )
+
+    def wait_for_model_instance(self, model_instance: ModelInstance) -> ModelInstance:
+        self.wait_for_job_logs(model_instance.job_dir)
+        nodes_ids, workers_head_ids = self.parse_job_logs(model_instance.job_dir)
+
+        model_instance.nodes_ids = nodes_ids
+        model_instance.workers_head_ids = workers_head_ids
+        model_instance.state = "running"
+
+        return model_instance
 
     def get_template(self) -> Template:
         mode_path = self.get_mode_path()
@@ -121,18 +127,23 @@ class Launcher:
             logging.error(f"Error parsing job ID from sbatch output: {result.stdout}")
             raise
 
-    def cancel_job(self, job_id: str) -> None:
+    def cancel_instance(self, model_instance: ModelInstance) -> None:
         try:
             subprocess.run(
-                ["scancel", job_id], capture_output=True, text=True, check=True
+                ["scancel", model_instance.job_id],
+                capture_output=True,
+                text=True,
+                check=True,
             )
-            logging.info(f"Job {job_id} cancelled successfully")
+            logging.info(f"Job {model_instance.job_id} cancelled successfully")
         except subprocess.CalledProcessError as e:
-            logging.error(f"Error cancelling job {job_id}: {e}")
+            logging.error(f"Error cancelling job {model_instance.job_id}: {e}")
             logging.error(f"stderr: {e.stderr}")
             raise
 
-    def wait_for_job(self, job_dir: str, timeout: int = 60, interval: int = 1) -> None:
+    def wait_for_job_logs(
+        self, job_dir: str, timeout: int = 60, interval: int = 1
+    ) -> None:
         log_path = f"{job_dir}/log.out"
         while True:
             if os.path.exists(log_path) and os.path.isfile(log_path):

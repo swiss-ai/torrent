@@ -34,8 +34,9 @@ class ModelInstance:
     start_time: int
     duration: int
     port: int
-    nodes_ids: List[str]
-    workers_head_ids: List[str]
+    nodes_ids: Optional[List[str]] = None
+    workers_head_ids: Optional[List[str]] = None
+    state: Literal["launched", "running"] = "launched"
 
 
 @dataclass
@@ -46,24 +47,19 @@ class ModelInstances:
     avg_time_per_request: float = 0.0
 
     @property
-    def num_workers(self) -> int:
-        return sum(
-            model_instance.num_workers for model_instance in self.model_instances
-        )
-
-    @property
-    def nodes_ids(self) -> List[str]:
-        nodes_ids = []
-        for model_instance in self.model_instances:
-            nodes_ids.extend(model_instance.nodes_ids)
-        return nodes_ids
-
-    @property
     def workers_head_ids(self) -> List[str]:
         workers_head_ids = []
         for model_instance in self.model_instances:
-            workers_head_ids.extend(model_instance.workers_head_ids)
+            if model_instance.state == "running":
+                workers_head_ids.extend(model_instance.workers_head_ids)
         return workers_head_ids
+
+    def get_num_workers(self, state: Literal["launched", "running"] = "running") -> int:
+        return sum(
+            len(model_instance.workers_head_ids)
+            for model_instance in self.model_instances
+            if model_instance.state == state
+        )
 
 
 @dataclass

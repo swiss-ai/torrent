@@ -1,18 +1,20 @@
 from __future__ import annotations
 
 import logging
+from atexit import register
 from dacite import from_dict
 from omegaconf import OmegaConf
-from typing import Union, Dict, Any, Optional
 from importlib.resources import files
+from transformers import AutoTokenizer
+from typing import Union, Dict, Any, Optional
 from datasets.features import Features, Value
 from datasets import Dataset, IterableDataset
-from transformers import AutoTokenizer, PreTrainedTokenizer
 
 from torrent.db import ServingDB
+from torrent.utils import nanoid
 from torrent.monitor import Monitor
 from torrent.launcher import Launcher
-from torrent.types import ModelInstances, RunMetadata, ModelConfig, ServingConfig
+from torrent.types import RunMetadata, ModelConfig, ServingConfig
 
 logger = logging.getLogger(__name__)
 
@@ -40,19 +42,34 @@ class Engine:
         if isinstance(dataset, Dataset):
             dataset = dataset.to_iterable_dataset()
 
-        tokenizer = AutoTokenizer.from_pretrained(model_path)
-        metadata = self.get_metadata(dataset, tokenizer)
+        run_id = nanoid()
+        metadata = self.get_metadata(dataset, model_path)
 
         model_instances = self.serving_db.get(model_path)
         serving_config = self.get_serving_config(model_config, metadata)
 
-        if model_instances is None or model_instances.num_workers < serving_config.num_workers:
-            serving_config.num_workers = serving_config.num_workers - model_instances.num_workers
+        has_to_wait = False
+        if (
+            model_instances is None
+            or model_instances.get_num_workers("launched") < serving_config.num_workers
+        ):
+            serving_config.num_workers = (
+                serving_config.num_workers - model_instances.get_num_workers("launched")
+            )
 
             new_instance = self.launcher.launch(model_config, serving_config)
             self.serving_db.add_instance(model_path, new_instance)
+            has_to_wait = True
+
+        self.serving_db.add_to_queue(model_path, run_id)
+
+        if has_to_wait:
+            new_instance = self.launcher.wait_for_model_instance(new_instance)
+            self.serving_db.update_instance(model_path, new_instance)
 
         dataset_iterator = dataset.iter(batch_size=batch_size)
+
+        self.serving_db.remove_from_queue(model_path, run_id)
 
     def validate_dataset(self, dataset: Union[Dataset, IterableDataset]) -> None:
         features = dataset.features
@@ -84,8 +101,10 @@ class Engine:
         return from_dict(ModelConfig, OmegaConf.create(config_path.read_text()))
 
     def get_metadata(
-        self, dataset: Union[Dataset, IterableDataset], tokenizer: PreTrainedTokenizer
+        self, dataset: Union[Dataset, IterableDataset], model_path: str
     ) -> RunMetadata:
+        tokenizer = AutoTokenizer.from_pretrained(model_path)
+
         def map_fn(x: Dict[str, Any]) -> Dict[str, Any]:
             input_ids = tokenizer(x["input"])["input_ids"]
 
@@ -116,3 +135,12 @@ class Engine:
             num_workers=num_workers,
             num_nodes_per_worker=num_nodes_per_worker,
         )
+
+    @register
+    def cleanup(self) -> None:
+        for model_path in self.serving_db.keys():
+            model_instances = self.serving_db.get(model_path)
+            if model_instances.queue == []:
+                for model_instance in model_instances.model_instances:
+                    self.launcher.cancel_instance(model_instance)
+                self.serving_db.delete(model_path)
