@@ -44,7 +44,6 @@ class ModelInstances:
     model_instances: List[ModelInstance]
     queue: List[str]
     num_waiting_requests: int = 0
-    avg_time_per_request: float = 0.0
 
     @property
     def workers_head_ids(self) -> List[str]:
