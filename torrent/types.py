@@ -11,6 +11,7 @@ class ModelConfig:
     tp_size: int = 1
     ep_size: int = 1
     moe_a2a_backend: Literal["none", "deepep"] = "none"
+    extra_args: Optional[str] = None
 
 
 @dataclass
@@ -32,12 +33,37 @@ class ModelInstance:
     job_dir: str
     start_time: int
     duration: int
-    queue: List[str]
-    nodes_ids: List[str]
     port: int
+    nodes_ids: List[str]
     workers_head_ids: List[str]
+
+
+@dataclass
+class ModelInstances:
+    model_instances: List[ModelInstance]
+    queue: List[str]
     num_waiting_requests: int = 0
     avg_time_per_request: float = 0.0
+
+    @property
+    def num_workers(self) -> int:
+        return sum(
+            model_instance.num_workers for model_instance in self.model_instances
+        )
+
+    @property
+    def nodes_ids(self) -> List[str]:
+        nodes_ids = []
+        for model_instance in self.model_instances:
+            nodes_ids.extend(model_instance.nodes_ids)
+        return nodes_ids
+
+    @property
+    def workers_head_ids(self) -> List[str]:
+        workers_head_ids = []
+        for model_instance in self.model_instances:
+            workers_head_ids.extend(model_instance.workers_head_ids)
+        return workers_head_ids
 
 
 @dataclass
@@ -56,3 +82,12 @@ class WorkerMetrics:
     cache_hit_rate: float = 0.0
     spec_accept_length: float = 0.0
     total_retracted_reqs: float = 0.0
+
+
+@dataclass
+class RunMetadata:
+    num_rows: int
+    num_input_tokens: int
+    start_time: Optional[int] = None
+    end_time: Optional[int] = None
+    num_output_tokens: Optional[int] = None

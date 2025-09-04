@@ -6,12 +6,10 @@ import time
 import logging
 import subprocess
 from jinja2 import Template
-from dacite import from_dict
 from datetime import datetime
 from dataclasses import asdict
-from omegaconf import OmegaConf
 from importlib.resources import files
-from typing import Literal, Tuple, List
+from typing import Tuple, List, Literal
 
 from torrent.utils import TMP_PATH, nanoid
 from torrent.types import ModelConfig, ServingConfig, ModelInstance
@@ -33,14 +31,28 @@ class Launcher:
         self.mode = mode
         self.template = self.get_template()
 
-    def launch(self, model_path: str, serving_config: ServingConfig) -> ModelInstance:
+    def get_mode_path(self) -> str:
+        return self.mode.replace("-", "_")
+
+    def launch(
+        self, model_config: ModelConfig, serving_config: ServingConfig
+    ) -> ModelInstance:
         start_time = time.time()
         duration = datetime.strptime(serving_config.time, "%H:%M:%S").total_seconds()
 
-        model_config = self.get_model_config(model_path)
         job_dir = self.create_job_dir()
         self.create_script(job_dir)
-        self.create_sbtach(job_dir, **asdict(serving_config), **asdict(model_config))
+
+        additional_kwargs = {
+            "job_name": f"torrent-{job_dir.split('/')[-1]}",
+        }
+
+        self.create_sbtach(
+            job_dir,
+            **asdict(serving_config),
+            **asdict(model_config),
+            **additional_kwargs,
+        )
         job_id = self.submit_job(job_dir)
 
         self.wait_for_job(job_dir)
@@ -53,25 +65,17 @@ class Launcher:
             job_dir=job_dir,
             start_time=start_time,
             duration=duration,
-            queue=[],
+            port=serving_config.port,
             nodes_ids=nodes_ids,
             workers_head_ids=workers_head_ids,
-            port=serving_config.port,
         )
 
     def get_template(self) -> Template:
-        mode_path = self.mode.replace("-", "_")
+        mode_path = self.get_mode_path()
         template_files = files(f"torrent.{mode_path}")
         template_content = (template_files / "template.jinja").read_text()
 
         return Template(template_content)
-
-    def get_model_config(self, model_path: str) -> ModelConfig:
-        mode_path = self.mode.replace("-", "_")
-        config_files = files(f"torrent.{mode_path}")
-        config_content = (config_files / "configs" / f"{model_path}.yaml").read_text()
-
-        return from_dict(ModelConfig, OmegaConf.create(config_content))
 
     def create_job_dir(self) -> str:
         job_dir = f"{TMP_PATH}/{nanoid()}"
@@ -137,7 +141,7 @@ class Launcher:
                         log_content = f.read()
                     if "[DONE]" in log_content:
                         break
-                except Exception as e:
+                except Exception:
                     pass
             time.sleep(interval)
             timeout -= interval
