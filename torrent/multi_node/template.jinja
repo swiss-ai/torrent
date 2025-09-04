@@ -1,0 +1,79 @@
+#!/bin/bash
+#SBATCH --job-name={{ job_name }}
+#SBATCH --cpus-per-task=288
+#SBATCH --gres=gpu:4
+#SBATCH --account={{ account }}
+#SBATCH --ntasks-per-node=1
+#SBATCH --time={{ time }}
+#SBATCH --exclusive
+#SBATCH --nodes={{ nodes }}
+#SBATCH --ntasks={{ nodes }}
+#SBATCH --partition={{ partition }}
+#SBATCH --environment={{ environment }}
+#SBATCH --output={{ log_dir }}/log.out
+#SBATCH --error={{ log_dir }}/log.err
+
+
+DP_SIZE={{ dp_size }}
+TP_SIZE={{ tp_size }}
+EP_SIZE={{ ep_size }}
+CUDA_GRAPH_MAX_BS={{ cuda_graph_max_bs }}
+GRAMMAR_BACKEND={{ grammar_backend }}
+MODEL_PATH={{ model_path }}
+NODES={{ nodes }}
+NODES_PER_WORKER={{ nodes_per_worker }}
+WORKERS={{ workers }}
+LOG_DIR={{ log_dir }}
+LAUNCH_WITH_ENV_PATH={{ launch_with_env_path }}
+EXTRA_ARGS={{ extra_args }}
+
+{% raw %}
+
+mkdir -p "${LOG_DIR}"
+
+nodes=($(scontrol show hostnames $SLURM_NODELIST))
+if [ ${#nodes[@]} -ne $NODES ]; then
+    echo "[ERROR]: Expected $NODES nodes but got ${#nodes[@]} nodes"
+    exit 1
+fi
+
+echo "[NODES_IDS]: ${nodes[*]}"
+
+workers_head_ids=()
+for worker_id in $(seq 0 $((WORKERS - 1))); do
+    start_node=$((worker_id * NODES_PER_WORKER))
+    workers_head_ids+=("${nodes[$start_node]}")
+done
+
+echo "[WORKERS_HEAD_IDS]: ${workers_head_ids[*]}"
+
+for worker_id in $(seq 0 $((WORKERS - 1))); do
+    echo "[INFO]: Launching worker $worker_id"
+    
+    start_node=$((worker_id * NODES_PER_WORKER))
+    end_node=$((start_node + NODES_PER_WORKER - 1))
+    
+    worker_nodes=()
+    for node_idx in $(seq $start_node $end_node); do
+        worker_nodes+=("${nodes[$node_idx]}")
+    done
+    
+    echo "[INFO]: Worker $worker_id nodes: ${worker_nodes[*]}"
+    worker_host_node=${workers_head_ids[$worker_id]}
+    
+    for local_rank in $(seq 0 $((NODES_PER_WORKER - 1))); do
+        global_node_idx=$((start_node + local_rank))
+        node=${nodes[$global_node_idx]}
+        
+        cmd="srun --nodes=1 --ntasks=1 --nodelist=$node --container-writable --output=${LOG_DIR}/worker${worker_id}_node${local_rank}_${node}.out --error=${LOG_DIR}/worker${worker_id}_node${local_rank}_${node}.err ${LAUNCH_WITH_ENV_PATH} --model-path ${MODEL_PATH} --host 0.0.0.0 --port 30000 --dist-init-addr ${worker_host_node}:5757 --nnodes ${NODES_PER_WORKER} --node-rank ${local_rank} --tp-size ${TP_SIZE} --dp-size ${DP_SIZE} --ep-size ${EP_SIZE} --cuda-graph-max-bs ${CUDA_GRAPH_MAX_BS} --grammar-backend ${GRAMMAR_BACKEND} --decode-log-interval 1 --enable-tokenizer-batch-encode --skip-server-warmup --enable-metrics --random-seed 42 ${EXTRA_ARGS}"
+        echo "[INFO]: $cmd"
+        $cmd &
+    done
+done
+
+echo "[DONE]"
+
+wait
+echo "[INFO]: Script finished at $(date)"
+
+{% endraw %}
