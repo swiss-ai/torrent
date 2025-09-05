@@ -85,15 +85,3 @@ class Dataset:
                         ]
                         return batch.data
         return None
-
-
-from datasets import load_dataset
-
-dataset = Dataset(
-    load_dataset("openai/gsm8k", name="main", split="train"), batch_size=32
-)
-
-batch = dataset.pull("worker_id")
-dataset.push("worker_id", batch)
-print(dataset.output_dataset)
-print(dataset.map)
