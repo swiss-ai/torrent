@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, List, Optional
+from typing import Literal, List, Optional, Dict, Any
 
 
 @dataclass
@@ -56,27 +56,11 @@ class ModelInstances:
 
     def get_num_workers(self) -> int:
         return sum(
-            len(model_instance.workers_head_ids) if model_instance.workers_head_ids is not None else 0
+            len(model_instance.workers_head_ids)
+            if model_instance.workers_head_ids is not None
+            else 0
             for model_instance in self.model_instances
         )
-
-
-@dataclass
-class WorkerMetrics:
-    worker_id: str
-    prompt_tokens_total: float = 0.0
-    generation_tokens_total: float = 0.0
-    num_requests_total: float = 0.0
-    cached_tokens_total: float = 0.0
-    num_running_reqs: float = 0.0
-    num_used_tokens: float = 0.0
-    token_usage: float = 0.0
-    gen_throughput: float = 0.0
-    num_queue_reqs: float = 0.0
-    num_grammar_queue_reqs: float = 0.0
-    cache_hit_rate: float = 0.0
-    spec_accept_length: float = 0.0
-    total_retracted_reqs: float = 0.0
 
 
 @dataclass
@@ -86,3 +70,9 @@ class RunMetadata:
     start_time: Optional[int] = None
     end_time: Optional[int] = None
     num_output_tokens: Optional[int] = None
+
+@dataclass
+class Batch:
+    index: int
+    start_time: float
+    data: Dict[str, Any]

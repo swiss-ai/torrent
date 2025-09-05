@@ -44,7 +44,9 @@ class ServingDB:
     def remove_from_queue(self, model_path: str, run_id: str) -> None:
         model_instances = self.get(model_path)
         model_instances.queue = [
-            queue_run_id for queue_run_id in model_instances.queue if queue_run_id != run_id
+            queue_run_id
+            for queue_run_id in model_instances.queue
+            if queue_run_id != run_id
         ]
         self.set(model_path, model_instances)
 
