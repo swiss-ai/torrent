@@ -2,7 +2,7 @@ import random
 import string
 
 
-TMP_PATH = "/tmp/torrent_NAFHueoW"
+TMP_PATH = "/users/nathanrchn/torrent_NAFHueoW"
 
 
 def nanoid(length: int = 8) -> str:

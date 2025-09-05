@@ -10,7 +10,7 @@ from dacite import from_dict
 from omegaconf import OmegaConf
 from importlib.resources import files
 from transformers import AutoTokenizer
-from datasets.features import Features, Value
+from datasets.features import Value
 from datasets import Dataset, IterableDataset
 from typing import Union, Dict, Any, Optional, List
 
@@ -21,6 +21,7 @@ from torrent.launcher import Launcher
 from torrent.types import RunMetadata, ModelConfig, ServingConfig, WorkerMetrics
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 class Engine:
@@ -41,7 +42,7 @@ class Engine:
 
     def run(
         self,
-        dataset: Union[Dataset, IterableDataset],
+        dataset: Dataset,
         model_path: str,
         batch_size: int = 32,
     ) -> None:
@@ -53,11 +54,10 @@ class Engine:
 
         self.validate_dataset(dataset)
 
-        if isinstance(dataset, Dataset):
-            dataset = dataset.to_iterable_dataset()
-
         run_id = nanoid()
         metadata = self.get_metadata(dataset, model_path)
+
+        dataset = dataset.to_iterable_dataset()
 
         model_instances = self.serving_db.get(model_path)
         serving_config = self.get_serving_config(model_config, metadata)
@@ -175,7 +175,7 @@ class Engine:
 
         if "sampling_params" in features:
             sampling_params_feature = features["sampling_params"]
-            if not isinstance(sampling_params_feature, Features):
+            if not isinstance(sampling_params_feature, dict):
                 raise ValueError(
                     f"Sampling params feature must be a dictionary, got {sampling_params_feature}"
                 )
@@ -183,7 +183,7 @@ class Engine:
     def get_model_config(self, model_path: str) -> Optional[ModelConfig]:
         mode_path = self.launcher.get_mode_path()
         config_files = files(f"torrent.{mode_path}")
-        config_path = config_files / "configs" / f"{model_path}.yaml"
+        config_path = config_files / "configs" / f"{model_path.replace('/', '_')}.yaml"
 
         if not config_path.exists():
             return None
@@ -218,8 +218,8 @@ class Engine:
     ) -> ServingConfig:
         num_nodes_per_worker = max(
             model_config.dp_size, model_config.tp_size, model_config.ep_size
-        )
-        num_workers = 8  # TODO: add a way to get the number of workers
+        ) // 4
+        num_workers = 2  # TODO: add a way to get the number of workers
 
         return ServingConfig(
             num_workers=num_workers,

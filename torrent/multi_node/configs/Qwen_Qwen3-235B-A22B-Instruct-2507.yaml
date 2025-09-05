@@ -1,5 +1,5 @@
 model_path: Qwen/Qwen3-235B-A22B-Instruct-2507
-dp_size: 8
-tp_size: 1
-ep_size: 8
+dp_size: 1
+tp_size: 8
+ep_size: 1
 moe_a2a_backend: deepep

@@ -11,7 +11,7 @@ class ModelConfig:
     tp_size: int = 1
     ep_size: int = 1
     moe_a2a_backend: Literal["none", "deepep"] = "none"
-    extra_args: Optional[str] = None
+    extra_args: str = ""
 
 
 @dataclass
@@ -23,13 +23,14 @@ class ServingConfig:
     time: str = "04:00:00"
     account: str = "a-infra01"
     port: int = 30000
-    cuda_graph_max_bs: Optional[int] = None
+    cuda_graph_max_bs: Optional[int] = 512
+    grammar_backend: Literal["llguidance", "xgrammar"] = "llguidance"
 
 
 @dataclass
 class ModelInstance:
     model_config: ModelConfig
-    job_id: str
+    job_id: int
     job_dir: str
     start_time: int
     duration: int
@@ -55,7 +56,7 @@ class ModelInstances:
 
     def get_num_workers(self, state: Literal["launched", "running"] = "running") -> int:
         return sum(
-            len(model_instance.workers_head_ids)
+            len(model_instance.workers_head_ids) if model_instance.workers_head_ids is not None else 0
             for model_instance in self.model_instances
             if model_instance.state == state
         )

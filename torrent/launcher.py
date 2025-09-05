@@ -39,14 +39,18 @@ class Launcher:
     def launch(
         self, model_config: ModelConfig, serving_config: ServingConfig
     ) -> ModelInstance:
-        start_time = time.time()
-        duration = datetime.strptime(serving_config.time, "%H:%M:%S").total_seconds()
+        start_time = int(time.time())
+        h, m, s = map(int, serving_config.time.split(":"))
+        duration = h * 3600 + m * 60 + s
 
         job_dir = self.create_job_dir()
         self.create_script(job_dir)
 
         additional_kwargs = {
             "job_name": f"torrent-{job_dir.split('/')[-1]}",
+            "nodes": serving_config.num_workers * serving_config.num_nodes_per_worker,
+            "log_dir": job_dir,
+            "launch_with_env_path": f"{job_dir}/launch_with_env.sh",
         }
 
         self.create_sbtach(
@@ -99,7 +103,7 @@ class Launcher:
     def create_sbtach(self, job_dir: str, **kwargs) -> None:
         sbatch_content = self.template.render(**kwargs)
 
-        sbatch_path = f"{job_dir}/launch.sbatch"
+        sbatch_path = f"{job_dir}/sbatch.sh"
         with open(sbatch_path, "w") as f:
             f.write(sbatch_content)
 
@@ -109,7 +113,7 @@ class Launcher:
     def submit_job(self, job_dir: str) -> int:
         try:
             result = subprocess.run(
-                ["sbatch", f"{job_dir}/launch.sbatch"],
+                ["sbatch", f"{job_dir}/sbatch.sh"],
                 capture_output=True,
                 text=True,
                 check=True,

@@ -1,8 +1,9 @@
-from typing import List
+import os
 from redislite import Redis
 from dacite import from_dict
 from json import loads, dumps
 from dataclasses import asdict
+from typing import List, Optional
 
 from torrent.utils import TMP_PATH
 from torrent.types import ModelInstances, ModelInstance
@@ -10,13 +11,17 @@ from torrent.types import ModelInstances, ModelInstance
 
 class ServingDB:
     def __init__(self) -> None:
+        os.makedirs(TMP_PATH, mode=0o777, exist_ok=True)
         self.db = Redis(f"{TMP_PATH}/serving.db")
 
     def keys(self) -> List[str]:
         return self.db.keys()
 
-    def get(self, model_path: str) -> ModelInstances:
-        return from_dict(ModelInstances, loads(self.db.get(model_path)))
+    def get(self, model_path: str) -> Optional[ModelInstances]:
+        value = self.db.get(model_path)
+        if value is None:
+            return None
+        return from_dict(ModelInstances, loads(value))
 
     def set(self, model_path: str, model_instances: ModelInstances) -> None:
         self.db.set(model_path, dumps(asdict(model_instances)))
