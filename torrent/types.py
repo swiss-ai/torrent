@@ -54,11 +54,10 @@ class ModelInstances:
                 workers_head_ids.extend(model_instance.workers_head_ids)
         return workers_head_ids
 
-    def get_num_workers(self, state: Literal["launched", "running"] = "running") -> int:
+    def get_num_workers(self) -> int:
         return sum(
             len(model_instance.workers_head_ids) if model_instance.workers_head_ids is not None else 0
             for model_instance in self.model_instances
-            if model_instance.state == state
         )
 
 

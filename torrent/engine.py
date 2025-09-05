@@ -66,12 +66,12 @@ class Engine:
         has_to_wait = False
         if (
             model_instances is None
-            or model_instances.get_num_workers("launched") < serving_config.num_workers
+            or model_instances.get_num_workers() < serving_config.num_workers
         ):
             if model_instances is None:
                 needed_workers = serving_config.num_workers
             else:
-                needed_workers = serving_config.num_workers - model_instances.get_num_workers("launched")
+                needed_workers = serving_config.num_workers - model_instances.get_num_workers()
 
             serving_config.num_workers = needed_workers
             new_instance = self.launcher.launch(model_config, serving_config)
@@ -99,6 +99,14 @@ class Engine:
                 serving_config.port,
                 interval=2  # Check every 2 seconds for responsiveness
             )
+
+        # Wait in the queue
+        while True:
+            model_instances = self.serving_db.get(model_path)
+            if model_instances.queue[0] == run_id:
+                break
+            logger.info("Waiting in the queue...")
+            time.sleep(1)
 
         # Main processing loop
         self._process_dataset(dataset, model_path, batch_size, serving_config.port, run_id)
@@ -142,10 +150,10 @@ class Engine:
             
             # Prepare batch requests
             batch_requests = []
-            for item in batch:
+            for input, sampling_params in zip(batch["input"], batch["sampling_params"]):
                 request_data = {
-                    "text": item["input"],
-                    "sampling_params": item.get("sampling_params", {})
+                    "text": input,
+                    "sampling_params": sampling_params
                 }
                 batch_requests.append(request_data)
             
@@ -286,15 +294,14 @@ class Engine:
             
             await asyncio.gather(*tasks, return_exceptions=True)
 
-    @register
-    def cleanup(self) -> None:
-        # Stop monitoring
-        self.monitor.stop_background_monitoring()
+    # def __del__(self) -> None:
+    #     # Stop monitoring
+    #     self.monitor.stop_background_monitoring()
         
-        # Clean up model instances
-        for model_path in self.serving_db.keys():
-            model_instances = self.serving_db.get(model_path)
-            if model_instances.queue == []:
-                for model_instance in model_instances.model_instances:
-                    self.launcher.cancel_instance(model_instance)
-                self.serving_db.delete(model_path)
+    #     # Clean up model instances
+    #     for model_path in self.serving_db.keys():
+    #         model_instances = self.serving_db.get(model_path)
+    #         if model_instances.queue == []:
+    #             for model_instance in model_instances.model_instances:
+    #                 self.launcher.cancel_instance(model_instance)
+    #             self.serving_db.delete(model_path)
