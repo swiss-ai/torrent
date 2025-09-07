@@ -49,6 +49,8 @@ Then you need to wait a bit for the job to start. Then you can open the logs and
 
 These urls are compatible with the OpenAI API. But wait at least 5min (and 10min if you are using a large model) for the server to be ready.
 
+If you want the model to use a very specific output format, please use [structured outputs](https://platform.openai.com/docs/guides/structured-outputs). The format will be used by the model 100% of the time. The easiest way is to use the `json_schema` parameter.
+
 ## Examples
 - [Filter Web Search DeepSeek](examples/filter_web_search_deepseek.py): this example uses the mini_lb module to balance the work between the workers. But this vibe coded LB is not very good and I am planning to replace it with a more robust LB.
 - [Visualize SFT Dataset](examples/visualize_sft_dataset.py): this example simply shard the dataset between the workers and process the dataset in parallel. It's simpler but not very robust if the dataset is not homogenous.

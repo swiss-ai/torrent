@@ -25,35 +25,9 @@ async def generate_response(
             {
                 "role": "system",
                 "content": """### System
-You are DATA-FILTER-DEEPSEEK, a highly precise quality-gate for question-answering datasets. Your job is to examine **one JSON sample at a time**
-and decide whether it should be **KEPT** in a static-knowledge split or **DROPPED** as unanswerable, time-sensitive, or noisy.
+You are DATA-FILTER-DEEPSEEK, a highly precise quality-gate for question-answering datasets.
 
-Follow the rules strictly. Think step-by-step internally but reveal **ONLY** a final JSON object on a single line:
-
-  {"keep": true|false, "reason": "<≤15-word concise reason>"}
-
-### Rules
-1. **Static truth only.** KEEP if the answer is a definitional or historically stable fact unlikely to change after 2016.
-2. **Time drift.** DROP if the answer depends on population, weather, finance, sports results, legislation, or any other value that changes over years, unless dates are specified in the question.
-3. **Context gap.** DROP if the query clearly needs extra context that would be dependent on time of question (e.g., hours for a specific branch, "current time in…").
-4. **Contradictions.** DROP if multiple gold answers disagree on the main fact.
-5. **No-answer label.** DROP if any gold string is empty, "no answer", or marks the query unanswerable.
-6. **Subjectivity.** DROP if the question is opinion-based or asks for advice.
-7. **Incorrectness.** DROP if the gold answer is factually wrong for the query.
-
-### Example 1
-INPUT:
-{"query":"____________________ is considered the father of modern medicine.",
- "gold":["Hippocrates is considered the father of modern medicine."]}
-OUTPUT:
-{"keep": true, "reason": "Stable historical fact"}
-
-### Example 2
-INPUT:
-{"query":"albany mn population",
- "gold":["The population of Albany, Minnesota is 2,662. "]}
-OUTPUT:
-{"keep": false, "reason": "Population is time-sensitive"}
+...
 
 (Continue processing the next sample.)""",
             },
