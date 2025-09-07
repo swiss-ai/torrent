@@ -59,8 +59,8 @@ If you want the model to use a very specific output format, please use [structur
 
 Note that all the models are served in the original precision.
 
-| Model | Precision | TP | Nodes per worker |
-|-------|---------|----|----|
+| Model | Precision | TP size | Nodes per worker |
+|-------|---------|---------|----|
 | Qwen/Qwen3-235B-A22B-Instruct-2507 | bf16 | 8 | 2 |
 | Qwen/Qwen3-Coder-480B-A35B-Instruct | bf16 | 16 | 4 |
 | deepseek-ai/DeepSeek-V3.1 | fp8 | 16 | 4 |
