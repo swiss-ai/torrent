@@ -1,8 +1,8 @@
 # Single and Multi Node Serving
 
-## Single node serving
+## Arguments
 
-Arguments:
+### Single node serving
 - `--job-name`: the name of the job (default: random 4 characters)
 - `--workers`: the number of workers (default: 1)
 - `--partition`: the partition to run the job on (default: "normal")
@@ -14,16 +14,8 @@ Arguments:
 - `--cuda-graph-max-bs`: the maximum batch size for CUDA graphs (default: 256)
 - `--grammar-backend`: the grammar backend to use (default: "llguidance")
 
-Usage:
-Realistically, you should only change the number of workers, the model path and the TP/DP/EP sizes. To launch a set of workers:
 
-```bash
-python serving/single-node/submit_job.py --workers 4 --model-path Qwen/Qwen3-Embedding-4B --dp-size 4
-```
-
-## Multi node serving
-
-Arguments:
+### Multi node serving
 - `--job-name`: the name of the job (default: random 4 characters)
 - `--workers`: the number of workers (default: 1)
 - `--nodes-per-worker`: the number of nodes per worker (required)
@@ -36,12 +28,47 @@ Arguments:
 - `--cuda-graph-max-bs`: the maximum batch size for CUDA graphs (default: 256)
 - `--grammar-backend`: the grammar backend to use (default: "llguidance")
 
-Usage:
+
+## Usage
+
+Realistically, you should only change the number of workers, the model path and the TP/DP/EP sizes. To launch a set of workers:
+
+### Single node serving
+
+```bash
+python serving/single-node/submit_job.py --workers 4 --model-path Qwen/Qwen3-Embedding-4B --dp-size 4
+```
+
+### Multi node serving
 
 ```bash
 python serving/multi-node/submit_job.py --workers 4 --nodes-per-worker 4 --model-path deepseek-ai/DeepSeek-V3.1 --tp-size 16
 ```
 
+Then you need to wait a bit for the job to start. Then you can open the logs and copy the list of workers urls.
+
+These urls are compatible with the OpenAI API. But wait at least 5min (and 10min if you are using a large model) for the server to be ready.
+
 ## Examples
 - [Filter Web Search DeepSeek](examples/filter_web_search_deepseek.py): this example uses the mini_lb module to balance the work between the workers. But this vibe coded LB is not very good and I am planning to replace it with a more robust LB.
 - [Visualize SFT Dataset](examples/visualize_sft_dataset.py): this example simply shard the dataset between the workers and process the dataset in parallel. It's simpler but not very robust if the dataset is not homogenous.
+
+## Settings per model
+
+Note that all the models are served in the original precision.
+
+| Model | Precision | TP | Nodes per worker |
+|-------|---------|----|----|
+| Qwen/Qwen3-235B-A22B-Instruct-2507 | bf16 | 8 | 2 |
+| Qwen/Qwen3-Coder-480B-A35B-Instruct | bf16 | 16 | 4 |
+| deepseek-ai/DeepSeek-V3.1 | fp8 | 16 | 4 |
+| meta-llama/Llama-3.1-405B-Instruct | bf16 | 16 | 4 |
+| swiss-ai/Apertus-8B-Instruct-2509 | bf16 | 1 | 1 |
+
+## Models weights
+
+I have downloaded the weights of the models above. If you want to avoid downloading the weights, set the `HF_HOME` to:
+
+```bash
+export HF_HOME=/iopsstor/scratch/cscs/nathanrchn/.cache/huggingface
+```
