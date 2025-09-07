@@ -1,0 +1,113 @@
+#!/bin/bash
+#SBATCH --job-name={{ job_name }}
+#SBATCH --cpus-per-task=288
+#SBATCH --gres=gpu:4
+#SBATCH --account=a-infra01
+#SBATCH --ntasks-per-node=1
+#SBATCH --time=04:00:00
+#SBATCH --exclusive
+#SBATCH --nodes={{ nodes }}
+#SBATCH --ntasks={{ nodes }}
+#SBATCH --partition={{ partition }}
+#SBATCH --environment={{ environment }}
+#SBATCH --output=logs/%j/log.out
+#SBATCH --error=logs/%j/log.err
+
+
+DP_SIZE={{ dp_size }}
+TP_SIZE={{ tp_size }}
+EP_SIZE={{ ep_size }}
+CUDA_GRAPH_MAX_BS={{ cuda_graph_max_bs }}
+GRAMMAR_BACKEND={{ grammar_backend }}
+MODEL_PATH={{ model_path }}
+NODES={{ nodes }}
+NODES_PER_WORKER={{ nodes_per_worker }}
+WORKERS={{ workers }}
+LOG_DIR="${SLURM_SUBMIT_DIR}/logs/${SLURM_JOB_ID}"
+START_SERVER_WITH_ENV_PATH={{ start_server_with_env_path }}
+
+{% raw %}
+
+mkdir -p "${LOG_DIR}"
+
+nodes=($(scontrol show hostnames $SLURM_NODELIST))
+if [ ${#nodes[@]} -ne $NODES ]; then
+    echo "Error: Expected $NODES nodes but got ${#nodes[@]} nodes"
+    exit 1
+fi
+
+# Print node information
+for i in "${!nodes[@]}"; do
+    echo "Node $i: ${nodes[$i]}"
+done
+
+# Collect all worker head IPs first
+worker_head_ips=()
+worker_urls=()
+for worker_id in $(seq 0 $((WORKERS - 1))); do
+    # Calculate node range for this worker
+    start_node=$((worker_id * NODES_PER_WORKER))
+    end_node=$((start_node + NODES_PER_WORKER - 1))
+    
+    # Get worker nodes
+    worker_nodes=()
+    for node_idx in $(seq $start_node $end_node); do
+        worker_nodes+=("${nodes[$node_idx]}")
+    done
+    
+    # Get worker host IP (first node of the worker)
+    worker_host_node=${worker_nodes[0]}
+    worker_host_ip=$(srun --nodes=1 --ntasks=1 -w ${worker_host_node} ip route get $(getent ahosts ${worker_host_node} | grep STREAM | head -1 | awk '{print $1}') | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}')
+    if [ -z "$worker_host_ip" ]; then
+        echo "Error: Could not retrieve IP address for worker $worker_id host ${worker_host_node}"
+        exit 1
+    fi
+    echo "Worker $worker_id host IP: $worker_host_ip"
+    
+    worker_head_ips+=("$worker_host_ip")
+    worker_urls+=("http://${worker_host_ip}:5000")
+done
+
+echo "All worker head IPs: $(printf '"%s"' "${worker_head_ips[@]}" | paste -sd ',' - | sed 's/,/, /g')"
+echo "All worker URLs: $(printf '"%s"' "${worker_urls[@]}" | paste -sd ',' - | sed 's/,/, /g')"
+
+# Launch workers
+for worker_id in $(seq 0 $((WORKERS - 1))); do
+    echo "Launching worker $worker_id"
+    
+    # Calculate node range for this worker
+    start_node=$((worker_id * NODES_PER_WORKER))
+    end_node=$((start_node + NODES_PER_WORKER - 1))
+    
+    # Get worker nodes
+    worker_nodes=()
+    for node_idx in $(seq $start_node $end_node); do
+        worker_nodes+=("${nodes[$node_idx]}")
+    done
+    
+    echo "Worker $worker_id nodes: ${worker_nodes[*]}"
+    worker_host_ip=${worker_head_ips[$worker_id]}
+    
+    # Launch tasks for this worker
+    for local_rank in $(seq 0 $((NODES_PER_WORKER - 1))); do
+        global_node_idx=$((start_node + local_rank))
+        node=${nodes[$global_node_idx]}
+        
+        cmd="srun --nodes=1 --ntasks=1 --nodelist=$node --container-writable --output=${LOG_DIR}/worker${worker_id}_node${local_rank}_${node}.out --error=${LOG_DIR}/worker${worker_id}_node${local_rank}_${node}.err ${START_SERVER_WITH_ENV_PATH} --model-path ${MODEL_PATH} --host 0.0.0.0 --port 5000 --dist-init-addr ${worker_host_ip}:5757 --nnodes ${NODES_PER_WORKER} --node-rank ${local_rank} --tp-size ${TP_SIZE} --dp-size ${DP_SIZE} --ep-size ${EP_SIZE} --cuda-graph-max-bs ${CUDA_GRAPH_MAX_BS} --grammar-backend ${GRAMMAR_BACKEND} --decode-log-interval 1"
+        echo "$cmd"
+        $cmd &
+    done
+done
+
+echo ""
+echo "To connect to the host node:"
+echo "srun --jobid $SLURM_JOB_ID -w ${nodes[0]} --overlap --pty bash"
+
+echo ""
+echo "Make sure to cancel the job at the end:"
+echo "scancel $SLURM_JOB_ID"
+
+wait
+echo "Script finished at $(date)"
+
+{% endraw %}

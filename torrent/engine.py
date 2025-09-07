@@ -5,6 +5,7 @@ import time
 import threading
 import aiohttp
 import asyncio
+import random
 from dacite import from_dict
 from omegaconf import OmegaConf
 from datasets.features import Value
@@ -30,8 +31,69 @@ class Engine:
 
         # Tracking variables for throughput control
         self._worker_health: Dict[str, bool] = {}
-        self._target_waiting_requests = 2000
+        self._target_concurrent_requests = 2000
         self._request_lock = threading.Lock()
+
+        # Start health check thread
+        self._health_check_thread = threading.Thread(
+            target=self._health_check_loop, daemon=True
+        )
+        self._health_check_thread.start()
+
+    def _health_check_loop(self) -> None:
+        """Periodically checks the health of all workers."""
+        asyncio.run(self._async_health_check_loop())
+
+    async def _async_health_check_loop(self) -> None:
+        while True:
+            await self._check_all_workers_health()
+            await asyncio.sleep(10)
+
+    async def _check_all_workers_health(self) -> None:
+        """Checks the health of all workers across all models."""
+        tasks = []
+        try:
+            async with aiohttp.ClientSession() as session:
+                for model_path in self.serving_db.keys():
+                    model_instances = self.serving_db.get(model_path)
+                    if not model_instances:
+                        continue
+
+                    for instance in model_instances.model_instances:
+                        if instance.state == "running" and instance.workers_head_ids:
+                            for worker_id in instance.workers_head_ids:
+                                task = self._check_worker_health(
+                                    session, worker_id, instance.port
+                                )
+                                tasks.append(task)
+                await asyncio.gather(*tasks)
+        except Exception as e:
+            logger.error(f"An error occurred during health check: {e}")
+
+    async def _check_worker_health(
+        self, session: aiohttp.ClientSession, worker_id: str, port: int
+    ) -> None:
+        """Check the health of a single worker and update its status."""
+        is_healthy = False
+        try:
+            url = f"http://{worker_id}:{port}/health"
+            async with session.get(
+                url, timeout=aiohttp.ClientTimeout(total=5)
+            ) as response:
+                if response.status == 200:
+                    is_healthy = True
+        except Exception as e:
+            logger.warning(
+                f"Health check failed for worker {worker_id} on port {port}: {e}"
+            )
+
+        with self._request_lock:
+            if self._worker_health.get(worker_id) != is_healthy:
+                if is_healthy:
+                    logger.info(f"Worker {worker_id} is now healthy")
+                else:
+                    logger.warning(f"Worker {worker_id} is now unhealthy")
+            self._worker_health[worker_id] = is_healthy
 
     def run(
         self,
@@ -121,45 +183,45 @@ class Engine:
     ) -> None:
         logger.info(f"Starting dataset processing for run {run_id}")
 
-        while True:
-            healthy_workers = self._get_healthy_workers(model_path)
-            if healthy_workers:
-                break
+        while not self._get_healthy_workers(model_path):
             logger.info("Waiting for healthy workers...")
             await asyncio.sleep(5)
 
         async with aiohttp.ClientSession() as session:
             tasks = [
-                self._worker_loop(worker_id, dataset, port, session)
-                for worker_id in healthy_workers
+                self._request_worker(session, port, dataset, model_path)
+                for _ in range(self._target_concurrent_requests)
             ]
             await asyncio.gather(*tasks)
 
         logger.info(f"Completed processing for run {run_id}")
 
-    async def _worker_loop(
+    async def _request_worker(
         self,
-        worker_id: str,
-        dataset: TorrentDataset,
-        port: int,
         session: aiohttp.ClientSession,
+        port: int,
+        dataset: TorrentDataset,
+        model_path: str,
     ) -> None:
-        """Main processing loop for a single worker."""
+        """A worker task that continuously processes batches from the dataset."""
         while not dataset.is_done():
-            # Pull a batch from the dataset
-            batch = dataset.pull(worker_id)
-            if batch is None:
+            healthy_workers = self._get_healthy_workers(model_path)
+            if not healthy_workers:
                 await asyncio.sleep(1)
                 continue
 
-            # Prepare batch request
-            request_data = {
-                "text": batch["input"],
-                "sampling_params": batch["sampling_params"],
-            }
+            worker_id = random.choice(healthy_workers)
+            batch = dataset.pull(worker_id)
 
-            # Send batch to the worker and get results
+            if batch is None:
+                await asyncio.sleep(0.1)
+                continue
+
             try:
+                request_data = {
+                    "text": batch["input"],
+                    "sampling_params": batch.get("sampling_params", {}),
+                }
                 results = await self._send_batch_request(
                     worker_id, request_data, port, session
                 )
@@ -169,7 +231,6 @@ class Engine:
                 logger.debug(
                     f"Worker {worker_id} processed batch {batch['batch_index'][0]}"
                 )
-
             except Exception as e:
                 logger.error(f"Failed to process batch on worker {worker_id}: {e}")
                 await asyncio.sleep(1)
@@ -238,15 +299,6 @@ class Engine:
             num_workers=num_workers,
             num_nodes_per_worker=num_nodes_per_worker,
         )
-
-    def _on_worker_health_change(self, worker_id: str, is_healthy: bool) -> None:
-        """Callback for when worker health status changes."""
-        with self._request_lock:
-            self._worker_health[worker_id] = is_healthy
-            if is_healthy:
-                logger.info(f"Worker {worker_id} is now healthy")
-            else:
-                logger.warning(f"Worker {worker_id} is now unhealthy")
 
     def _get_healthy_workers(self, model_path: str) -> List[str]:
         """Get list of healthy worker IDs for a model."""
