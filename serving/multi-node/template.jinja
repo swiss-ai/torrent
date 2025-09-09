@@ -93,7 +93,7 @@ for worker_id in $(seq 0 $((WORKERS - 1))); do
         global_node_idx=$((start_node + local_rank))
         node=${nodes[$global_node_idx]}
         
-        cmd="srun --nodes=1 --ntasks=1 --nodelist=$node --container-writable --output=${LOG_DIR}/worker${worker_id}_node${local_rank}_${node}.out --error=${LOG_DIR}/worker${worker_id}_node${local_rank}_${node}.err ${START_SERVER_WITH_ENV_PATH} --model-path ${MODEL_PATH} --host 0.0.0.0 --port 5000 --dist-init-addr ${worker_host_ip}:5757 --nnodes ${NODES_PER_WORKER} --node-rank ${local_rank} --tp-size ${TP_SIZE} --dp-size ${DP_SIZE} --ep-size ${EP_SIZE} --cuda-graph-max-bs ${CUDA_GRAPH_MAX_BS} --grammar-backend ${GRAMMAR_BACKEND} --decode-log-interval 1"
+        cmd="srun --nodes=1 --ntasks=1 --nodelist=$node --container-writable --output=${LOG_DIR}/worker${worker_id}_node${local_rank}_${node}.out --error=${LOG_DIR}/worker${worker_id}_node${local_rank}_${node}.err ${START_SERVER_WITH_ENV_PATH} --model-path ${MODEL_PATH} --host 0.0.0.0 --port 5000 --dist-init-addr ${worker_host_ip}:5757 --nnodes ${NODES_PER_WORKER} --node-rank ${local_rank} --tp-size ${TP_SIZE} --dp-size ${DP_SIZE} --ep-size ${EP_SIZE} --cuda-graph-max-bs ${CUDA_GRAPH_MAX_BS} --grammar-backend ${GRAMMAR_BACKEND} --decode-log-interval 1 --trust-remote-code"
         echo "$cmd"
         $cmd &
     done
