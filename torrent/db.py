@@ -1,61 +1,68 @@
-import os
+from typing import List
 from redislite import Redis
 from dacite import from_dict
-from json import loads, dumps
+from json import dumps, loads
 from dataclasses import asdict
-from typing import List, Optional
 
-from torrent.utils import TMP_PATH
-from torrent.types import ModelInstances, ModelInstance
+from torrent.utils import TORRENT_PATH
+from torrent.types import RunMetadata, WorkerInfos, WorkerStatus, Usage
 
 
-class ServingDB:
-    def __init__(self) -> None:
-        os.makedirs(TMP_PATH, mode=0o777, exist_ok=True)
-        self.db = Redis(f"{TMP_PATH}/serving.db")
+class TorrentDB:
+    def __init__(self, path: str = TORRENT_PATH) -> None:
+        self.db = Redis(f"{path}/torrent.db")
 
-    def keys(self) -> List[str]:
-        return self.db.keys()
+    def add_run(self, run_metadata: RunMetadata) -> None:
+        if self.db.get(run_metadata.id) is not None:
+            raise ValueError(f"Run {run_metadata.id} already exists")
 
-    def get(self, model_path: str) -> Optional[ModelInstances]:
-        value = self.db.get(model_path)
-        if value is None:
-            return None
-        return from_dict(ModelInstances, loads(value))
+        self.db.set(f"{run_metadata.id}:index", 0)
+        self.db.set(f"{run_metadata.id}:metadata", dumps(asdict(run_metadata)))
 
-    def set(self, model_path: str, model_instances: ModelInstances) -> None:
-        self.db.set(model_path, dumps(asdict(model_instances)))
+    def get_run(self, id: str) -> RunMetadata:
+        return from_dict(RunMetadata, loads(self.db.get(f"{id}:metadata")))
 
-    def delete(self, model_path: str) -> None:
-        self.db.delete(model_path)
+    def get_run_index(self, id: str) -> int:
+        return self.db.get(f"{id}:index")
 
-    def add_instance(self, model_path: str, model_instance: ModelInstance) -> None:
-        model_instances = self.get(model_path) or ModelInstances(
-            model_instances=[], queue=[]
+    def incr_run_index(self, id: str, incr: int = 1) -> int:
+        return self.db.incrby(f"{id}:index", incr)
+
+    def add_worker(self, id: str, worker_infos: WorkerInfos) -> None:
+        self.db.set(
+            f"{id}:workers:{worker_infos.worker_head_node_id}",
+            dumps(asdict(worker_infos)),
         )
-        model_instances.model_instances.append(model_instance)
-        self.set(model_path, model_instances)
 
-    def add_to_queue(self, model_path: str, run_id: str) -> None:
-        model_instances = self.get(model_path)
-        model_instances.queue.append(run_id)
-        self.set(model_path, model_instances)
+    def get_worker(self, id: str, worker_head_node_id: str) -> WorkerInfos:
+        return from_dict(
+            WorkerInfos, loads(self.db.get(f"{id}:workers:{worker_head_node_id}"))
+        )
 
-    def remove_from_queue(self, model_path: str, run_id: str) -> None:
-        model_instances = self.get(model_path)
-        model_instances.queue = [
-            queue_run_id
-            for queue_run_id in model_instances.queue
-            if queue_run_id != run_id
-        ]
-        self.set(model_path, model_instances)
+    def update_worker_status(
+        self, id: str, worker_head_node_id: str, status: WorkerStatus
+    ) -> None:
+        worker_infos = self.get_worker(id, worker_head_node_id)
+        worker_infos.status = status
+        self.db.set(
+            f"{id}:workers:{worker_head_node_id}",
+            dumps(asdict(worker_infos)),
+        )
 
-    def update_instance(self, model_path: str, model_instance: ModelInstance) -> None:
-        model_instances = self.get(model_path)
-        model_instances.model_instances = [
-            existing_instance
-            for existing_instance in model_instances.model_instances
-            if existing_instance.job_id != model_instance.job_id
-        ]
-        model_instances.model_instances.append(model_instance)
-        self.set(model_path, model_instances)
+    def update_worker_usage(
+        self, id: str, worker_head_node_id: str, usage: Usage
+    ) -> None:
+        worker_infos = self.get_worker(id, worker_head_node_id)
+        worker_infos.usage = usage
+        self.db.set(
+            f"{id}:workers:{worker_head_node_id}",
+            dumps(asdict(worker_infos)),
+        )
+
+    def list_runs(self) -> List[RunMetadata]:
+        keys = self.db.keys(pattern="*:metadata")
+        return [self.get_run(key.split(":")[0]) for key in keys]
+
+    def list_workers(self, id: str) -> List[WorkerInfos]:
+        keys = self.db.keys(pattern=f"{id}:workers:*")
+        return [self.get_worker(id, key.split(":")[2]) for key in keys]

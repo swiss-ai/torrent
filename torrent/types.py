@@ -1,78 +1,79 @@
 from __future__ import annotations
 
+from enum import Enum
 from dataclasses import dataclass
-from typing import Literal, List, Optional, Dict, Any
+from typing import Optional, Literal
+
+
+class RunStatus(Enum):
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class WorkerStatus(Enum):
+    STARTING = "starting"
+    RUNNING = "running"
+    STOPPED = "stopped"
 
 
 @dataclass
-class ModelConfig:
-    model_path: str
-    dp_size: int = 1
-    tp_size: int = 1
-    ep_size: int = 1
-    moe_a2a_backend: Literal["none", "deepep"] = "none"
-    extra_args: str = ""
+class Usage:
+    prompt_tokens: int
+    completion_tokens: int
+    cached_tokens: int
 
+    @classmethod
+    def zero(cls) -> Usage:
+        return cls(prompt_tokens=0, completion_tokens=0, cached_tokens=0)
 
-@dataclass
-class ServingConfig:
-    num_workers: int
-    num_nodes_per_worker: int
-    partition: str = "normal"
-    environment: str = "sglang_gb200"
-    time: str = "04:00:00"
-    account: str = "a-infra01"
-    port: int = 30000
-    cuda_graph_max_bs: Optional[int] = 512
-    grammar_backend: Literal["llguidance", "xgrammar"] = "llguidance"
-
-
-@dataclass
-class ModelInstance:
-    model_config: ModelConfig
-    job_id: int
-    job_dir: str
-    start_time: int
-    duration: int
-    port: int
-    nodes_ids: Optional[List[str]] = None
-    workers_head_ids: Optional[List[str]] = None
-    state: Literal["launched", "running"] = "launched"
-
-
-@dataclass
-class ModelInstances:
-    model_instances: List[ModelInstance]
-    queue: List[str]
-    num_waiting_requests: int = 0
-
-    @property
-    def workers_head_ids(self) -> List[str]:
-        workers_head_ids = []
-        for model_instance in self.model_instances:
-            if model_instance.state == "running":
-                workers_head_ids.extend(model_instance.workers_head_ids)
-        return workers_head_ids
-
-    def get_num_workers(self) -> int:
-        return sum(
-            len(model_instance.workers_head_ids)
-            if model_instance.workers_head_ids is not None
-            else 0
-            for model_instance in self.model_instances
+    def add(self, other: Usage) -> Usage:
+        return Usage(
+            prompt_tokens=self.prompt_tokens + other.prompt_tokens,
+            completion_tokens=self.completion_tokens + other.completion_tokens,
+            cached_tokens=self.cached_tokens + other.cached_tokens,
         )
 
 
 @dataclass
 class RunMetadata:
-    num_rows: int
-    num_input_tokens: int
-    start_time: Optional[int] = None
+    id: str
+    status: RunStatus
+    start_time: int
+    model_path: str
+    input_dataset_path: str
+    input_dataset_split: str
+    output_dataset_path: str
+    batch_size: Optional[int] = None
+    total_rows: Optional[int] = None
     end_time: Optional[int] = None
-    num_output_tokens: Optional[int] = None
+
 
 @dataclass
-class Batch:
-    index: int
-    start_time: float
-    data: Dict[str, Any]
+class WorkerInfos:
+    job_id: int
+    worker_head_node_id: str
+    status: WorkerStatus
+    usage: Usage
+
+
+@dataclass
+class WorkerArgs:
+    run_id: str
+    db_full_path: str
+    worker_head_node_id: str
+    input_dataset_path: str
+    input_dataset_split: str
+    output_dataset_path: str
+
+
+@dataclass
+class ServerArgs:
+    dp_size: int = 1
+    tp_size: int = 1
+    ep_size: int = 1
+    cuda_graph_max_bs: Optional[int] = 512
+    grammar_backend: Literal["llguidance", "xgrammar"] = "llguidance"
+    batch_size: int = 256
+    max_concurrent_requests: int = 16
+    token_usage_threshold: float = 0.8
