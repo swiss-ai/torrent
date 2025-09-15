@@ -5,13 +5,13 @@ from dataclasses import dataclass
 from typing import Optional, Literal
 
 
-class RunStatus(Enum):
+class RunStatus(str, Enum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
 
 
-class WorkerStatus(Enum):
+class WorkerStatus(str, Enum):
     STARTING = "starting"
     RUNNING = "running"
     STOPPED = "stopped"

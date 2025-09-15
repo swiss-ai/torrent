@@ -7,10 +7,12 @@ from typing import Optional
 from dacite import from_dict
 from dataclasses import asdict
 from omegaconf import OmegaConf
-from importlib.resources import files
 
 from torrent.types import RunMetadata, ServerArgs
 from torrent.utils import TORRENT_PATH, NUM_GPU_PER_NODE
+
+
+file_dir = os.path.dirname(os.path.abspath(__file__))
 
 
 class JobManager:
@@ -44,6 +46,8 @@ class JobManager:
         self.create_sbtach(
             run_dir,
             model_path=run_metadata.model_path,
+            nodes=num_nodes_per_worker * workers,
+            workers=workers,
             num_nodes_per_worker=num_nodes_per_worker,
             partition=partition,
             environment=environment,
@@ -51,6 +55,7 @@ class JobManager:
             account=account,
             port=port,
             log_dir=run_dir,
+            worker_cmd=f"{file_dir}/worker.py",
             job_name=run_metadata.id,
             **asdict(server_args),
         )
@@ -59,17 +64,22 @@ class JobManager:
             self.submit_job(run_dir)
 
     def get_template(self) -> Template:
-        template_content = files(f"torrent.template.jinja").read_text()
+        template_path = os.path.join(file_dir, "template.jinja")
+        with open(template_path, "r") as f:
+            template_content = f.read()
         return Template(template_content)
 
     def get_server_args(self, model_path: str) -> Optional[ServerArgs]:
-        config_files = files(f"torrent.models")
-        config_path = config_files / f"{model_path.replace('/', '_')}.yaml"
+        config_files = os.path.join(file_dir, "models")
+        config_path = os.path.join(config_files, f"{model_path.replace('/', '_')}.yaml")
 
-        if not config_path.exists():
+        if not os.path.exists(config_path):
             return None
 
-        return from_dict(ServerArgs, OmegaConf.create(config_path.read_text()))
+        with open(config_path, "r") as f:
+            config_content = f.read()
+
+        return from_dict(ServerArgs, OmegaConf.create(config_content))
 
     def create_run_dir(self, run_id: str) -> str:
         run_dir = f"{TORRENT_PATH}/{run_id}"

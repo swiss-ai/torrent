@@ -1,9 +1,9 @@
+import time
 from argparse import ArgumentParser
 
-from torrent.db import TorrentDB
 from torrent.job_manager import JobManager
-from torrent.utils import print_runs
 from torrent.types import RunMetadata, RunStatus
+from torrent.utils import nanoid, get_default_db, print_runs
 
 
 def launch_run(
@@ -13,13 +13,13 @@ def launch_run(
     split: str,
     output_dataset_path: str,
     workers: int,
-    time: str,
     partition: str,
     environment: str,
     account: str,
     port: int,
+    time_str: str,
 ):
-    db = TorrentDB()
+    db = get_default_db()
 
     run_metadata = RunMetadata(
         id=run_id,
@@ -35,7 +35,7 @@ def launch_run(
 
     job_manager = JobManager()
     job_manager.launch(
-        run_metadata, workers, time, partition, environment, account, port
+        run_metadata, workers, time_str, partition, environment, account, port
     )
 
 
@@ -67,9 +67,6 @@ def main():
         "--workers", type=int, default=1, help="The number of workers to use"
     )
     launch_parser.add_argument(
-        "--time", type=str, default="04:00:00", help="The time to use"
-    )
-    launch_parser.add_argument(
         "--partition", type=str, default="normal", help="The partition to use"
     )
     launch_parser.add_argument(
@@ -81,6 +78,9 @@ def main():
     launch_parser.add_argument(
         "--port", type=int, default=30000, help="The port to use"
     )
+    launch_parser.add_argument(
+        "--time", type=str, default="04:00:00", help="The time to use"
+    )
 
     cancel_parser = subparsers.add_parser("cancel", help="Cancel a run")
     cancel_parser.add_argument("run_id", type=str, help="The ID of the run to cancel")
@@ -88,26 +88,27 @@ def main():
     args = parser.parse_args()
 
     if args.command == "list":
-        db = TorrentDB()
+        db = get_default_db()
         print_runs(db)
     elif args.command == "attach":
         pass
     elif args.command == "launch":
         launch_run(
+            nanoid(),
             args.model_path,
             args.input_dataset_path,
             args.split,
             args.output_dataset_path,
             args.workers,
-            args.time,
             args.partition,
             args.environment,
             args.account,
             args.port,
+            args.time,
         )
     elif args.command == "cancel":
         run_id = args.run_id
-        db = TorrentDB()
+        db = get_default_db()
         job_manager = JobManager()
 
         for worker in db.list_workers(run_id):

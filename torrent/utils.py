@@ -1,3 +1,4 @@
+import os
 import random
 import string
 from datetime import datetime
@@ -6,11 +7,15 @@ from prettytable import PrettyTable
 
 BATCH_SIZE = 512
 NUM_GPU_PER_NODE = 4
-TORRENT_PATH = "$HOME/.torrent"
+TORRENT_PATH = os.path.expanduser("~/.torrent")
 
 
 def nanoid(length: int = 8) -> str:
     return "".join(random.choices(string.ascii_letters, k=length))
+
+
+def get_default_db() -> TorrentDB:
+    return TorrentDB(TORRENT_PATH)
 
 
 def print_runs(db: TorrentDB) -> None:
@@ -29,6 +34,7 @@ def print_runs(db: TorrentDB) -> None:
         "Input Dataset",
         "Output Dataset",
         "Total Rows",
+        "Batch Size",
         "Total Prompt Tokens",
         "Total Completion Tokens",
         "Total Cached Tokens",

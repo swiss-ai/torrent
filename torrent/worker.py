@@ -1,8 +1,16 @@
 import os
 import sys
 import asyncio
-from dacite import from_dict
+import subprocess
+from json import loads
 from typing import Dict, Any, List, Tuple
+
+try:
+    from dacite import from_dict
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "dacite"])
+    from dacite import from_dict
+
 from datasets import Dataset, load_from_disk
 from sglang.srt.server_args import ServerArgs
 from sglang.srt.utils import kill_process_tree
@@ -169,7 +177,7 @@ async def main(worker_args: WorkerArgs, server_args: ServerArgs):
 
 
 if __name__ == "__main__":
-    worker_args = parse_worker_args(sys.argv[1])
+    worker_args = from_dict(WorkerArgs, loads(sys.argv[1]))
     server_args = prepare_server_args(sys.argv[2:])
 
     try:

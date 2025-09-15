@@ -1,16 +1,25 @@
+import os
+import warnings
+
+warnings.filterwarnings("ignore")
+
 from typing import List
 from redislite import Redis
-from dacite import from_dict
+from dacite import from_dict, Config
 from json import dumps, loads
 from dataclasses import asdict
 
-from torrent.utils import TORRENT_PATH
-from torrent.types import RunMetadata, WorkerInfos, WorkerStatus, Usage
+from torrent.types import RunMetadata, WorkerInfos, WorkerStatus, RunStatus, Usage
 
 
 class TorrentDB:
-    def __init__(self, path: str = TORRENT_PATH) -> None:
+    def __init__(self, path: str) -> None:
+        if not os.path.exists(path):
+            os.makedirs(path)
+
         self.db = Redis(f"{path}/torrent.db")
+
+        self.dacite_config = Config(cast=[RunStatus, WorkerStatus])
 
     def add_run(self, run_metadata: RunMetadata) -> None:
         if self.db.get(run_metadata.id) is not None:
@@ -20,7 +29,9 @@ class TorrentDB:
         self.db.set(f"{run_metadata.id}:metadata", dumps(asdict(run_metadata)))
 
     def get_run(self, id: str) -> RunMetadata:
-        return from_dict(RunMetadata, loads(self.db.get(f"{id}:metadata")))
+        return from_dict(
+            RunMetadata, loads(self.db.get(f"{id}:metadata")), config=self.dacite_config
+        )
 
     def get_run_index(self, id: str) -> int:
         return self.db.get(f"{id}:index")
@@ -36,7 +47,9 @@ class TorrentDB:
 
     def get_worker(self, id: str, worker_head_node_id: str) -> WorkerInfos:
         return from_dict(
-            WorkerInfos, loads(self.db.get(f"{id}:workers:{worker_head_node_id}"))
+            WorkerInfos,
+            loads(self.db.get(f"{id}:workers:{worker_head_node_id}")),
+            config=self.dacite_config,
         )
 
     def update_worker_status(
@@ -61,8 +74,8 @@ class TorrentDB:
 
     def list_runs(self) -> List[RunMetadata]:
         keys = self.db.keys(pattern="*:metadata")
-        return [self.get_run(key.split(":")[0]) for key in keys]
+        return [self.get_run(key.decode("utf-8").split(":")[0]) for key in keys]
 
     def list_workers(self, id: str) -> List[WorkerInfos]:
         keys = self.db.keys(pattern=f"{id}:workers:*")
-        return [self.get_worker(id, key.split(":")[2]) for key in keys]
+        return [self.get_worker(id, key.decode("utf-8").split(":")[2]) for key in keys]
