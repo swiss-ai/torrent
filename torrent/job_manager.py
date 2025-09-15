@@ -7,12 +7,13 @@ from typing import Optional
 from dacite import from_dict
 from dataclasses import asdict
 from omegaconf import OmegaConf
+try:
+    from importlib.resources import files
+except ImportError:
+    from importlib_resources import files
 
 from torrent.types import RunMetadata, ServerArgs
 from torrent.utils import TORRENT_PATH, NUM_GPU_PER_NODE
-
-
-file_dir = os.path.dirname(os.path.abspath(__file__))
 
 
 class JobManager:
@@ -55,7 +56,7 @@ class JobManager:
             account=account,
             port=port,
             log_dir=run_dir,
-            worker_cmd=f"{file_dir}/worker.py",
+            worker_cmd="python -m torrent.worker",
             job_name=run_metadata.id,
             **asdict(server_args),
         )
@@ -64,22 +65,16 @@ class JobManager:
             self.submit_job(run_dir)
 
     def get_template(self) -> Template:
-        template_path = os.path.join(file_dir, "template.jinja")
-        with open(template_path, "r") as f:
-            template_content = f.read()
+        template_content = (files("torrent") / "template.jinja").read_text()
         return Template(template_content)
 
     def get_server_args(self, model_path: str) -> Optional[ServerArgs]:
-        config_files = os.path.join(file_dir, "models")
-        config_path = os.path.join(config_files, f"{model_path.replace('/', '_')}.yaml")
-
-        if not os.path.exists(config_path):
+        config_filename = f"{model_path.replace('/', '_')}.yaml"
+        try:
+            config_content = (files("torrent") / "models" / config_filename).read_text()
+            return from_dict(ServerArgs, OmegaConf.create(config_content))
+        except FileNotFoundError:
             return None
-
-        with open(config_path, "r") as f:
-            config_content = f.read()
-
-        return from_dict(ServerArgs, OmegaConf.create(config_content))
 
     def create_run_dir(self, run_id: str) -> str:
         run_dir = f"{TORRENT_PATH}/{run_id}"

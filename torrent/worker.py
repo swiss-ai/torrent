@@ -1,16 +1,9 @@
 import os
 import sys
 import asyncio
-import subprocess
 from json import loads
+from dacite import from_dict
 from typing import Dict, Any, List, Tuple
-
-try:
-    from dacite import from_dict
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "dacite"])
-    from dacite import from_dict
-
 from datasets import Dataset, load_from_disk
 from sglang.srt.server_args import ServerArgs
 from sglang.srt.utils import kill_process_tree

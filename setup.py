@@ -14,7 +14,8 @@ setup(
         "dacite",
         "omegaconf",
         "redislite",
-        "prettytable"
+        "prettytable",
+        "importlib_resources; python_version<'3.9'"
     ],
     python_requires=">=3.8",
 )
