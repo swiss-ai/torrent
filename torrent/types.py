@@ -65,6 +65,9 @@ class WorkerArgs:
     input_dataset_path: str
     input_dataset_split: str
     output_dataset_path: str
+    batch_size: int
+    max_concurrent_requests: int
+    token_usage_threshold: float
 
 
 @dataclass

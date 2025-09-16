@@ -77,6 +77,9 @@ class JobManager:
             wa_input_dataset_path=run_metadata.input_dataset_path,
             wa_input_dataset_split=run_metadata.input_dataset_split,
             wa_output_dataset_path=run_metadata.output_dataset_path,
+            wa_batch_size=server_args.batch_size,
+            wa_max_concurrent_requests=server_args.max_concurrent_requests,
+            wa_token_usage_threshold=server_args.token_usage_threshold,
             **asdict(server_args),
         )
 

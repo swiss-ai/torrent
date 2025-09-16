@@ -1,7 +1,6 @@
 import os
 import sys
 import asyncio
-from json import loads
 from dacite import from_dict
 from typing import Dict, Any, List, Tuple
 from datasets import Dataset, load_from_disk
@@ -28,6 +27,9 @@ def parse_worker_args(argv: str) -> WorkerArgs:
             "input_dataset_path": args[3],
             "input_dataset_split": args[4],
             "output_dataset_path": args[5],
+            "batch_size": args[6],
+            "max_concurrent_requests": args[7],
+            "token_usage_threshold": args[8],
         },
     )
 
