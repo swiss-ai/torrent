@@ -40,7 +40,9 @@ def get_server_args(model_path: str) -> Optional[ServerArgs]:
         return None
 
 
-def clean_runs(db: TorrentDB) -> None: # TODO: this function is wrong, it should be fixed
+def clean_runs(
+    db: TorrentDB,
+) -> None:  # TODO: this function is wrong, it should be fixed
     for run in [run for run in db.list_runs() if run.status == RunStatus.RUNNING]:
         try:
             result = subprocess.run(
@@ -114,7 +116,7 @@ def print_runs(db: TorrentDB) -> None:
     ]
     table.align = "l"
 
-    for run in runs:
+    for run in sorted(runs, key=lambda x: x.start_time, reverse=True):
         workers = db.list_workers(run.id)
 
         total_prompt_tokens = sum(worker.usage.prompt_tokens for worker in workers)
