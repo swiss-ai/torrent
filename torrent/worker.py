@@ -17,6 +17,20 @@ from torrent.utils import get_default_db
 from torrent.types import WorkerArgs, WorkerStatus, Usage, WorkerInfos
 
 
+def parse_worker_args(argv: str) -> WorkerArgs:
+    args = argv.split("<SEP>")
+    return from_dict(
+        WorkerArgs,
+        {
+            "run_id": args[0],
+            "worker_head_node_id": args[1],
+            "input_dataset_path": args[2],
+            "input_dataset_split": args[3],
+            "output_dataset_path": args[4],
+        },
+    )
+
+
 def get_token_usage(tokenizer_manager: TokenizerManager) -> float:
     raq = RpcReqInput(method="_get_token_info")
 
@@ -156,8 +170,7 @@ async def main(worker_args: WorkerArgs, server_args: ServerArgs):
 
 
 if __name__ == "__main__":
-    print(sys.argv)
-    worker_args = from_dict(WorkerArgs, loads(sys.argv[1]))
+    worker_args = parse_worker_args(sys.argv[1])
     server_args = prepare_server_args(sys.argv[2:])
 
     try:
