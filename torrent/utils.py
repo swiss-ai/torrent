@@ -1,10 +1,12 @@
 import os
+import time
 import random
 import string
+from tqdm import tqdm
+from typing import Optional
 from dacite import from_dict
 from datetime import datetime
 from omegaconf import OmegaConf
-from typing import Optional
 
 try:
     from importlib.resources import files
@@ -111,3 +113,12 @@ def print_runs(db: TorrentDB) -> None:
         )
 
     print(table)
+
+def attach_run(db: TorrentDB, run_id: str) -> None:
+    run = db.get_run(run_id)
+    
+    with tqdm(total=run.total_rows, desc=run_id) as pbar:
+        while (index := db.get_run_index(run_id)) < run.total_rows:
+            pbar.n = index
+            pbar.refresh()
+            time.sleep(0.5)

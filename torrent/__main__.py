@@ -4,7 +4,7 @@ from datasets import load_from_disk
 
 from torrent.job_manager import JobManager
 from torrent.types import RunMetadata, RunStatus
-from torrent.utils import nanoid, get_default_db, print_runs, get_server_args
+from torrent.utils import nanoid, get_default_db, print_runs, get_server_args, attach_run
 
 
 def launch_run(
@@ -114,7 +114,8 @@ def main():
         db = get_default_db()
         print_runs(db)
     elif args.command == "attach":
-        pass
+        db = get_default_db()
+        attach_run(db, args.run_id)
     elif args.command == "launch":
         launch_run(
             nanoid(),

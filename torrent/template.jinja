@@ -26,6 +26,7 @@ NODES_PER_WORKER={{ num_nodes_per_worker }}
 LOG_DIR={{ log_dir }}
 WORKER_CMD={{ worker_cmd }}
 WA_RUN_ID={{ wa_run_id }}
+WA_DB_FULL_PATH={{ wa_db_full_path }}
 WA_INPUT_DATASET_PATH={{ wa_input_dataset_path }}
 WA_INPUT_DATASET_SPLIT={{ wa_input_dataset_split }}
 WA_OUTPUT_DATASET_PATH={{ wa_output_dataset_path }}
@@ -69,7 +70,7 @@ for worker_id in $(seq 0 $((WORKERS - 1))); do
         global_node_idx=$((start_node + local_rank))
         node=${nodes[$global_node_idx]}
         
-        cmd="srun --nodes=1 --ntasks=1 --nodelist=$node --container-writable --output=${LOG_DIR}/worker${worker_id}_node${local_rank}_${node}.out --error=${LOG_DIR}/worker${worker_id}_node${local_rank}_${node}.err bash ${WORKER_CMD} ${WA_RUN_ID}<SEP>${SLURM_JOB_ID}<SEP>${worker_host_node}<SEP>${WA_INPUT_DATASET_PATH}<SEP>${WA_INPUT_DATASET_SPLIT}<SEP>${WA_OUTPUT_DATASET_PATH}<SEP>${WA_BATCH_SIZE}<SEP>${WA_MAX_CONCURRENT_REQUESTS}<SEP>${WA_TOKEN_USAGE_THRESHOLD} --model-path ${MODEL_PATH} --host 0.0.0.0 --port 30000 --dist-init-addr ${worker_host_node}:5757 --nnodes ${NODES_PER_WORKER} --node-rank ${local_rank} --tp-size ${TP_SIZE} --dp-size ${DP_SIZE} --ep-size ${EP_SIZE} --cuda-graph-max-bs ${CUDA_GRAPH_MAX_BS} --grammar-backend ${GRAMMAR_BACKEND} --decode-log-interval 1 --skip-server-warmup --enable-metrics --random-seed 42"
+        cmd="srun --nodes=1 --ntasks=1 --nodelist=$node --container-writable --output=${LOG_DIR}/worker${worker_id}_node${local_rank}_${node}.out --error=${LOG_DIR}/worker${worker_id}_node${local_rank}_${node}.err bash ${WORKER_CMD} ${WA_RUN_ID}<SEP>${SLURM_JOB_ID}<SEP>${WA_DB_FULL_PATH}<SEP>${worker_host_node}<SEP>${WA_INPUT_DATASET_PATH}<SEP>${WA_INPUT_DATASET_SPLIT}<SEP>${WA_OUTPUT_DATASET_PATH}<SEP>${WA_BATCH_SIZE}<SEP>${WA_MAX_CONCURRENT_REQUESTS}<SEP>${WA_TOKEN_USAGE_THRESHOLD} --model-path ${MODEL_PATH} --host 0.0.0.0 --port 30000 --dist-init-addr ${worker_host_node}:5757 --nnodes ${NODES_PER_WORKER} --node-rank ${local_rank} --tp-size ${TP_SIZE} --dp-size ${DP_SIZE} --ep-size ${EP_SIZE} --cuda-graph-max-bs ${CUDA_GRAPH_MAX_BS} --grammar-backend ${GRAMMAR_BACKEND} --decode-log-interval 1 --skip-server-warmup --enable-metrics --random-seed 42"
         echo "[INFO]: $cmd"
         $cmd &
     done

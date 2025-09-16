@@ -12,7 +12,6 @@ from sglang.srt.server_args import prepare_server_args
 from sglang.srt.managers.tokenizer_manager import TokenizerManager
 
 from torrent.db import TorrentDB
-from torrent.utils import get_default_db
 from torrent.types import WorkerArgs, WorkerStatus, Usage, WorkerInfos
 
 
@@ -23,13 +22,14 @@ def parse_worker_args(argv: str) -> WorkerArgs:
         {
             "run_id": args[0],
             "job_id": args[1],
-            "worker_head_node_id": args[2],
-            "input_dataset_path": args[3],
-            "input_dataset_split": args[4],
-            "output_dataset_path": args[5],
-            "batch_size": int(args[6]),
-            "max_concurrent_requests": int(args[7]),
-            "token_usage_threshold": float(args[8]),
+            "db_full_path": args[2],
+            "worker_head_node_id": args[3],
+            "input_dataset_path": args[4],
+            "input_dataset_split": args[5],
+            "output_dataset_path": args[6],
+            "batch_size": int(args[7]),
+            "max_concurrent_requests": int(args[8]),
+            "token_usage_threshold": float(args[9]),
         },
     )
 
@@ -134,7 +134,7 @@ async def async_processing_loop(
 
 
 async def main(worker_args: WorkerArgs, server_args: ServerArgs):
-    db = get_default_db()
+    db = TorrentDB(worker_args.db_full_path)
 
     worker_infos = WorkerInfos(
         job_id=worker_args.job_id,
