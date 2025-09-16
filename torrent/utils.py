@@ -40,7 +40,7 @@ def get_server_args(model_path: str) -> Optional[ServerArgs]:
         return None
 
 
-def clean_runs(db: TorrentDB) -> None:
+def clean_runs(db: TorrentDB) -> None: # TODO: this function is wrong, it should be fixed
     for run in [run for run in db.list_runs() if run.status == RunStatus.RUNNING]:
         try:
             result = subprocess.run(

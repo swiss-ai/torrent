@@ -10,7 +10,6 @@ from torrent.utils import (
     print_runs,
     get_server_args,
     attach_run,
-    clean_runs,
 )
 
 
@@ -119,7 +118,6 @@ def main():
 
     if args.command == "list":
         db = get_default_db()
-        clean_runs(db)
         print_runs(db)
     elif args.command == "attach":
         db = get_default_db()

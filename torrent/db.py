@@ -5,9 +5,9 @@ warnings.filterwarnings("ignore")
 
 from typing import List
 from redislite import Redis
-from dacite import from_dict, Config
 from json import dumps, loads
 from dataclasses import asdict
+from dacite import from_dict, Config
 
 from torrent.types import RunMetadata, WorkerInfos, WorkerStatus, RunStatus, Usage
 
