@@ -23,10 +23,8 @@ class TorrentDB:
         self._local = threading.local()
 
         with self._get_connection() as conn:
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA synchronous=FULL")
-            conn.execute("PRAGMA busy_timeout=30000")
-
+            self._configure_connection(conn)
+            
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS runs (
                     id TEXT PRIMARY KEY,
@@ -46,6 +44,28 @@ class TorrentDB:
             """)
 
             conn.commit()
+    
+    def _configure_connection(self, conn):
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+        except sqlite3.OperationalError:
+            try:
+                conn.execute("PRAGMA journal_mode=DELETE")
+            except sqlite3.OperationalError:
+                pass
+        
+        try:
+            conn.execute("PRAGMA synchronous=NORMAL")
+        except sqlite3.OperationalError:
+            try:
+                conn.execute("PRAGMA synchronous=OFF")
+            except sqlite3.OperationalError:
+                pass
+        
+        try:
+            conn.execute("PRAGMA busy_timeout=30000")
+        except sqlite3.OperationalError:
+            pass
 
     @contextmanager
     def _get_connection(self):
@@ -53,9 +73,7 @@ class TorrentDB:
             self._local.conn = sqlite3.connect(
                 self.db_path, check_same_thread=False, timeout=30.0
             )
-            self._local.conn.execute("PRAGMA journal_mode=WAL")
-            self._local.conn.execute("PRAGMA synchronous=FULL")
-            self._local.conn.execute("PRAGMA busy_timeout=30000")
+            self._configure_connection(self._local.conn)
 
         try:
             yield self._local.conn
