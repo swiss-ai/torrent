@@ -40,10 +40,11 @@ class TorrentDB:
         return self.db.incrby(f"{id}:index", incr)
 
     def add_worker(self, id: str, worker_infos: WorkerInfos) -> None:
-        self.db.set(
+        out = self.db.set(
             f"{id}:workers:{worker_infos.worker_head_node_id}",
             dumps(asdict(worker_infos)),
         )
+        print(worker_infos, out)
 
     def get_worker(self, id: str, worker_head_node_id: str) -> WorkerInfos:
         return from_dict(
@@ -82,4 +83,4 @@ class TorrentDB:
         return [self.get_worker(id, key.decode("utf-8").split(":")[2]) for key in keys]
 
     def get_full_path(self) -> str:
-        return self.db.db.replace("torrent.db", "")
+        return "/".join(self.db.db.split("/")[:-1])
