@@ -16,6 +16,15 @@ from torrent.types import RunMetadata, ServerArgs
 from torrent.utils import TORRENT_PATH, NUM_GPU_PER_NODE
 
 
+WORKER_COMMAND_CONTENT = """\
+#!/bin/bash
+
+pip install git+https://github.com/swiss-ai/torrent.git
+
+python -m torrent.worker "$@"
+"""
+
+
 class JobManager:
     def __init__(self) -> None:
         self.template = self.get_template()
@@ -44,6 +53,8 @@ class JobManager:
         run_dir = self.create_run_dir(run_metadata.id)
 
         num_nodes_per_worker = server_args.tp_size // NUM_GPU_PER_NODE
+        self.create_script(run_dir)
+
         self.create_sbtach(
             run_dir,
             model_path=run_metadata.model_path,
@@ -56,7 +67,7 @@ class JobManager:
             account=account,
             port=port,
             log_dir=run_dir,
-            worker_cmd="python -m torrent.worker",
+            worker_cmd=f"{run_dir}/worker_command.sh",
             job_name=run_metadata.id,
             **asdict(server_args),
         )
@@ -80,6 +91,14 @@ class JobManager:
         run_dir = f"{TORRENT_PATH}/{run_id}"
         os.makedirs(run_dir, exist_ok=True)
         return run_dir
+
+    def create_script(self, job_dir: str) -> None:
+        script_path = f"{job_dir}/worker_command.sh"
+        with open(script_path, "w") as f:
+            f.write(WORKER_COMMAND_CONTENT)
+
+        current_permissions = os.stat(script_path).st_mode
+        os.chmod(script_path, current_permissions | stat.S_IEXEC)
 
     def create_sbtach(self, run_dir: str, **kwargs) -> None:
         sbatch_content = self.template.render(**kwargs)
