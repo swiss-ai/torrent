@@ -46,6 +46,9 @@ class TorrentDB:
         )
         print(worker_infos, out)
 
+        retrieved = self.get_worker(id, worker_infos.worker_head_node_id)
+        print(worker_infos, retrieved)
+
     def get_worker(self, id: str, worker_head_node_id: str) -> WorkerInfos:
         return from_dict(
             WorkerInfos,
