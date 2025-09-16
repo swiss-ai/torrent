@@ -7,6 +7,7 @@ from typing import Optional
 from dacite import from_dict
 from dataclasses import asdict
 from omegaconf import OmegaConf
+
 try:
     from importlib.resources import files
 except ImportError:
@@ -69,6 +70,10 @@ class JobManager:
             log_dir=run_dir,
             worker_cmd=f"{run_dir}/worker_command.sh",
             job_name=run_metadata.id,
+            wa_run_id=run_metadata.id,
+            wa_input_dataset_path=run_metadata.input_dataset_path,
+            wa_input_dataset_split=run_metadata.input_dataset_split,
+            wa_output_dataset_path=run_metadata.output_dataset_path,
             **asdict(server_args),
         )
 
