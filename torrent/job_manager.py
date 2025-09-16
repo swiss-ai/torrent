@@ -57,7 +57,7 @@ class JobManager:
         run_dir = self.create_run_dir(run_metadata.id)
 
         num_nodes_per_worker = server_args.tp_size // NUM_GPU_PER_NODE
-        self.create_script(run_dir)
+        self.create_script(run_dir, run_metadata.model_path)
 
         self.create_sbtach(
             run_dir,
@@ -103,10 +103,29 @@ class JobManager:
         os.makedirs(run_dir, exist_ok=True)
         return run_dir
 
-    def create_script(self, job_dir: str) -> None:
+    def get_worker_command_content(self, model_path: str) -> str:
+        extra_env = (
+            f'export SGL_ENABLE_JIT_DEEPGEMM="false"'
+            if model_path == "deepseek-ai/DeepSeek-V3.1"
+            else ""
+        )
+        return f"""\
+#!/bin/bash
+
+export no_proxy="0.0.0.0,$no_proxy"
+export NO_PROXY="0.0.0.0,$NO_PROXY"
+
+{extra_env}
+
+pip install git+https://github.com/swiss-ai/torrent.git
+
+python -m torrent.worker "$@"
+        """
+
+    def create_script(self, job_dir: str, model_path: str) -> None:
         script_path = f"{job_dir}/worker_command.sh"
         with open(script_path, "w") as f:
-            f.write(WORKER_COMMAND_CONTENT)
+            f.write(self.get_worker_command_content(model_path))
 
         current_permissions = os.stat(script_path).st_mode
         os.chmod(script_path, current_permissions | stat.S_IEXEC)

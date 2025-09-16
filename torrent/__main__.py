@@ -1,5 +1,6 @@
 import time
 from argparse import ArgumentParser
+from datasets import load_from_disk
 
 from torrent.job_manager import JobManager
 from torrent.types import RunMetadata, RunStatus
@@ -21,12 +22,18 @@ def launch_run(
 ):
     db = get_default_db()
 
+    dataset = load_from_disk(input_dataset_path)[split]
+
+    if "input" not in dataset.column_names:
+        raise ValueError("Dataset must have an 'input' column")
+
     run_metadata = RunMetadata(
         id=run_id,
         model_path=model_path,
         input_dataset_path=input_dataset_path,
         input_dataset_split=split,
         output_dataset_path=output_dataset_path,
+        total_rows=dataset.num_rows,
         status=RunStatus.RUNNING,
         start_time=int(time.time()),
         end_time=None,

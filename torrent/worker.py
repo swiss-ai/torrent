@@ -144,12 +144,6 @@ async def main(worker_args: WorkerArgs, server_args: ServerArgs):
         worker_args.input_dataset_path, worker_args.input_dataset_split
     )
 
-    if "input" not in dataset.column_names:
-        raise ValueError("Dataset must have an 'input' column")
-
-    batch_size = min(worker_args.batch_size, dataset.num_rows)
-    db.put_dataset_info(worker_args.run_id, batch_size, dataset.num_rows)
-
     async with Engine(server_args=server_args) as engine:
         db.update_worker_status(
             worker_args.run_id, worker_args.worker_head_node_id, WorkerStatus.RUNNING
@@ -157,7 +151,7 @@ async def main(worker_args: WorkerArgs, server_args: ServerArgs):
 
         output_dataset = await async_processing_loop(
             id=worker_args.run_id,
-            batch_size=batch_size,
+            batch_size=worker_args.batch_size,
             engine=engine,
             db=db,
             input_dataset=dataset,
