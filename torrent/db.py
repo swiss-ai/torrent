@@ -22,6 +22,7 @@ class TorrentDB:
         self.dacite_config = Config(cast=[RunStatus, WorkerStatus])
 
     def add_run(self, run_metadata: RunMetadata) -> None:
+        print(f"adding run {run_metadata.id}")
         if self.db.get(run_metadata.id) is not None:
             raise ValueError(f"Run {run_metadata.id} already exists")
 
@@ -29,30 +30,37 @@ class TorrentDB:
         self.db.set(f"{run_metadata.id}:metadata", dumps(asdict(run_metadata)))
 
     def get_run(self, id: str) -> RunMetadata:
+        print(f"getting run {id}")
         return from_dict(
             RunMetadata, loads(self.db.get(f"{id}:metadata")), config=self.dacite_config
         )
 
     def get_run_index(self, id: str) -> int:
+        print(f"getting run index {id}")
         return self.db.get(f"{id}:index")
 
     def incr_run_index(self, id: str, incr: int = 1) -> int:
+        print(f"incrementing run index {id} by {incr}")
         return self.db.incrby(f"{id}:index", incr)
 
     def put_dataset_info(self, id: str, batch_size: int, total_rows: int) -> None:
+        print(f"putting dataset info {id} {batch_size} {total_rows}")
         run_metadata = self.get_run(id)
+        print(f"run metadata {run_metadata}")
         if run_metadata.batch_size is None and run_metadata.total_rows is None:
             run_metadata.batch_size = batch_size
             run_metadata.total_rows = total_rows
             self.db.set(f"{id}:metadata", dumps(asdict(run_metadata)))
 
     def add_worker(self, id: str, worker_infos: WorkerInfos) -> None:
+        print(f"adding worker {id} {worker_infos.worker_head_node_id}")
         self.db.set(
             f"{id}:workers:{worker_infos.worker_head_node_id}",
             dumps(asdict(worker_infos)),
         )
 
     def get_worker(self, id: str, worker_head_node_id: str) -> WorkerInfos:
+        print(f"getting worker {id} {worker_head_node_id}")
         return from_dict(
             WorkerInfos,
             loads(self.db.get(f"{id}:workers:{worker_head_node_id}")),
@@ -62,6 +70,7 @@ class TorrentDB:
     def update_worker_status(
         self, id: str, worker_head_node_id: str, status: WorkerStatus
     ) -> None:
+        print(f"updating worker status {id} {worker_head_node_id} {status}")
         worker_infos = self.get_worker(id, worker_head_node_id)
         worker_infos.status = status
         self.db.set(
@@ -72,6 +81,7 @@ class TorrentDB:
     def update_worker_usage(
         self, id: str, worker_head_node_id: str, usage: Usage
     ) -> None:
+        print(f"updating worker usage {id} {worker_head_node_id} {usage}")
         worker_infos = self.get_worker(id, worker_head_node_id)
         worker_infos.usage = usage
         self.db.set(
@@ -80,9 +90,11 @@ class TorrentDB:
         )
 
     def list_runs(self) -> List[RunMetadata]:
+        print("listing runs")
         keys = self.db.keys(pattern="*:metadata")
         return [self.get_run(key.decode("utf-8").split(":")[0]) for key in keys]
 
     def list_workers(self, id: str) -> List[WorkerInfos]:
+        print(f"listing workers {id}")
         keys = self.db.keys(pattern=f"{id}:workers:*")
         return [self.get_worker(id, key.decode("utf-8").split(":")[2]) for key in keys]
