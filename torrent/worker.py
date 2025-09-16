@@ -147,7 +147,7 @@ async def main(worker_args: WorkerArgs, server_args: ServerArgs):
     if "input" not in dataset.column_names:
         raise ValueError("Dataset must have an 'input' column")
 
-    batch_size = min(server_args.batch_size, dataset.num_rows)
+    batch_size = min(worker_args.batch_size, dataset.num_rows)
     db.put_dataset_info(worker_args.run_id, batch_size, dataset.num_rows)
 
     async with Engine(server_args=server_args) as engine:
@@ -162,8 +162,8 @@ async def main(worker_args: WorkerArgs, server_args: ServerArgs):
             db=db,
             input_dataset=dataset,
             worker_infos=worker_infos,
-            max_concurrent_requests=server_args.max_concurrent_requests,
-            token_usage_threshold=server_args.token_usage_threshold,
+            max_concurrent_requests=worker_args.max_concurrent_requests,
+            token_usage_threshold=worker_args.token_usage_threshold,
         )
 
         output_dataset.save_to_disk(
