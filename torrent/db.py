@@ -64,13 +64,14 @@ class TorrentDB:
 
     def update_worker_usage(
         self, id: str, worker_head_node_id: str, usage: Usage
-    ) -> None:
+    ) -> Usage:
         worker_infos = self.get_worker(id, worker_head_node_id)
-        worker_infos.usage = usage
+        worker_infos.add_usage(usage)
         self.db.set(
             f"{id}:workers:{worker_head_node_id}",
             dumps(asdict(worker_infos)),
         )
+        return worker_infos.usage
 
     def list_runs(self) -> List[RunMetadata]:
         keys = self.db.keys(pattern="*:metadata")

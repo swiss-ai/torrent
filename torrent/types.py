@@ -56,6 +56,9 @@ class WorkerInfos:
     status: WorkerStatus
     usage: Usage
 
+    def add_usage(self, usage: Usage) -> None:
+        self.usage = self.usage.add(usage)
+
 
 @dataclass
 class WorkerArgs:
@@ -75,7 +78,7 @@ class ServerArgs:
     dp_size: int = 1
     tp_size: int = 1
     ep_size: int = 1
-    cuda_graph_max_bs: Optional[int] = 512
+    cuda_graph_max_bs: Optional[int] = 1024
     grammar_backend: Literal["llguidance", "xgrammar"] = "llguidance"
     batch_size: int = 256
     max_concurrent_requests: int = 16

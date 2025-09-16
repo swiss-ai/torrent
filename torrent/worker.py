@@ -114,7 +114,9 @@ async def async_processing_loop(
             try:
                 outputs, usage = await task
                 completed_outputs.extend(outputs)
-                worker_infos.usage = worker_infos.usage.add(usage)
+                worker_infos.usage = db.update_worker_usage(
+                    worker_args.run_id, worker_args.worker_head_node_id, usage
+                )
             except Exception as e:
                 print(f"error: {e}")
 
@@ -124,7 +126,9 @@ async def async_processing_loop(
         results = await asyncio.gather(*pending_requests)
         for outputs, usage in results:
             completed_outputs.extend(outputs)
-            worker_infos.usage = worker_infos.usage.add(usage)
+            worker_infos.usage = db.update_worker_usage(
+                worker_args.run_id, worker_args.worker_head_node_id, usage
+            )
 
     return Dataset.from_list(completed_outputs)
 
@@ -166,9 +170,6 @@ async def main(worker_args: WorkerArgs, server_args: ServerArgs):
 
     db.update_worker_status(
         worker_args.run_id, worker_args.worker_head_node_id, WorkerStatus.STOPPED
-    )
-    db.update_worker_usage(
-        worker_args.run_id, worker_args.worker_head_node_id, worker_infos.usage
     )
 
 
