@@ -20,6 +20,9 @@ from torrent.utils import TORRENT_PATH, NUM_GPU_PER_NODE
 WORKER_COMMAND_CONTENT = """\
 #!/bin/bash
 
+export no_proxy="0.0.0.0,$no_proxy"
+export NO_PROXY="0.0.0.0,$NO_PROXY"
+
 pip install git+https://github.com/swiss-ai/torrent.git
 
 python -m torrent.worker "$@"

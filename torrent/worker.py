@@ -23,10 +23,11 @@ def parse_worker_args(argv: str) -> WorkerArgs:
         WorkerArgs,
         {
             "run_id": args[0],
-            "worker_head_node_id": args[1],
-            "input_dataset_path": args[2],
-            "input_dataset_split": args[3],
-            "output_dataset_path": args[4],
+            "job_id": args[1],
+            "worker_head_node_id": args[2],
+            "input_dataset_path": args[3],
+            "input_dataset_split": args[4],
+            "output_dataset_path": args[5],
         },
     )
 
@@ -172,6 +173,7 @@ async def main(worker_args: WorkerArgs, server_args: ServerArgs):
 if __name__ == "__main__":
     worker_args = parse_worker_args(sys.argv[1])
     server_args = prepare_server_args(sys.argv[2:])
+    print(worker_args)
 
     try:
         asyncio.run(main(worker_args, server_args))

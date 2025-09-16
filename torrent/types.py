@@ -51,7 +51,7 @@ class RunMetadata:
 
 @dataclass
 class WorkerInfos:
-    job_id: int
+    job_id: str
     worker_head_node_id: str
     status: WorkerStatus
     usage: Usage
@@ -60,6 +60,7 @@ class WorkerInfos:
 @dataclass
 class WorkerArgs:
     run_id: str
+    job_id: str
     worker_head_node_id: str
     input_dataset_path: str
     input_dataset_split: str
