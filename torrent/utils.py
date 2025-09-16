@@ -172,7 +172,7 @@ def attach_run(db: TorrentDB, run_id: str) -> None:
     run = db.get_run(run_id)
 
     with tqdm(total=run.total_rows, desc=run_id) as pbar:
-        while (index := db.get_run_index(run_id)) < run.total_rows:
-            pbar.n = index
+        while pbar.n < run.total_rows:
+            pbar.n = db.get_run_index(run_id)
             pbar.refresh()
             time.sleep(0.5)
