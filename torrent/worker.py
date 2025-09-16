@@ -27,9 +27,9 @@ def parse_worker_args(argv: str) -> WorkerArgs:
             "input_dataset_path": args[3],
             "input_dataset_split": args[4],
             "output_dataset_path": args[5],
-            "batch_size": args[6],
-            "max_concurrent_requests": args[7],
-            "token_usage_threshold": args[8],
+            "batch_size": int(args[6]),
+            "max_concurrent_requests": int(args[7]),
+            "token_usage_threshold": float(args[8]),
         },
     )
 
