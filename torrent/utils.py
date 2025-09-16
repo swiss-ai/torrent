@@ -2,11 +2,12 @@ import os
 import time
 import random
 import string
+import subprocess
 from tqdm import tqdm
-from typing import Optional
 from dacite import from_dict
 from datetime import datetime
 from omegaconf import OmegaConf
+from typing import Optional, List
 
 try:
     from importlib.resources import files
@@ -14,8 +15,8 @@ except ImportError:
     from importlib_resources import files
 
 from torrent.db import TorrentDB
-from torrent.types import ServerArgs
 from prettytable import PrettyTable
+from torrent.types import ServerArgs, RunStatus
 
 BATCH_SIZE = 512
 NUM_GPU_PER_NODE = 4
@@ -37,6 +38,52 @@ def get_server_args(model_path: str) -> Optional[ServerArgs]:
         return from_dict(ServerArgs, OmegaConf.create(config_content))
     except FileNotFoundError:
         return None
+
+
+def clean_runs(db: TorrentDB) -> None:
+    for run in [run for run in db.list_runs() if run.status == RunStatus.RUNNING]:
+        try:
+            result = subprocess.run(
+                ["sacct", "-j", run.id, "--format=JobID,State,ExitCode", "--parsable2"],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            lines = result.stdout.strip().splitlines()
+            if len(lines) < 2:
+                continue
+
+            for line in lines[1:]:
+                parts = line.split("|")
+                if len(parts) >= 2:
+                    job_id = parts[0].strip()
+                    job_state = parts[1].strip()
+
+                    if job_id == run.id and "." not in job_id:
+                        if job_state == "COMPLETED":
+                            run.status = RunStatus.COMPLETED
+                            if run.end_time is None:
+                                run.end_time = int(time.time())
+                            db.update_run_status(run.id, run.status)
+                            break
+                        elif job_state in [
+                            "FAILED",
+                            "CANCELLED",
+                            "TIMEOUT",
+                            "NODE_FAIL",
+                            "OUT_OF_MEMORY",
+                        ]:
+                            run.status = RunStatus.FAILED
+                            if run.end_time is None:
+                                run.end_time = int(time.time())
+                            db.update_run_status(run.id, run.status)
+                            break
+
+        except subprocess.CalledProcessError as e:
+            print(f"Error checking run {run.id}: {e}")
+        except Exception as e:
+            print(f"Unexpected error checking run {run.id}: {e}")
 
 
 def format_int(value: Optional[int]) -> str:

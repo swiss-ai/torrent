@@ -21,8 +21,6 @@ class TorrentDB:
         self.db = Redis(self.db_path)
 
         self.db.config_set("save", "1 1")
-        self.db.config_set("stop-writes-on-bgsave-error", "no")
-
         self.dacite_config = Config(cast=[RunStatus, WorkerStatus])
 
     def add_run(self, run_metadata: RunMetadata) -> None:
@@ -31,7 +29,7 @@ class TorrentDB:
 
         self.db.set(f"{run_metadata.id}:index", 0)
         self.db.set(f"{run_metadata.id}:metadata", dumps(asdict(run_metadata)))
-        self.db.bgsave()
+        self.db.save()
 
     def get_run(self, id: str) -> RunMetadata:
         return from_dict(
@@ -43,14 +41,13 @@ class TorrentDB:
 
     def incr_run_index(self, id: str, incr: int = 1) -> int:
         output = self.db.incrby(f"{id}:index", incr)
-        self.db.bgsave()
+        self.db.save()
         return int(output)
 
     def add_worker(self, id: str, worker_infos: WorkerInfos) -> None:
         key = f"{id}:workers:{worker_infos.worker_head_node_id}"
-        out = self.db.set(key, dumps(asdict(worker_infos)))
-        self.db.bgsave()
-        print(f"Added worker {worker_infos.worker_head_node_id} to run {id}: {out}")
+        self.db.set(key, dumps(asdict(worker_infos)))
+        self.db.save()
 
     def get_worker(self, id: str, worker_head_node_id: str) -> WorkerInfos:
         return from_dict(
@@ -68,7 +65,7 @@ class TorrentDB:
             f"{id}:workers:{worker_head_node_id}",
             dumps(asdict(worker_infos)),
         )
-        self.db.bgsave()
+        self.db.save()
 
     def update_worker_usage(
         self, id: str, worker_head_node_id: str, usage: Usage
@@ -79,8 +76,14 @@ class TorrentDB:
             f"{id}:workers:{worker_head_node_id}",
             dumps(asdict(worker_infos)),
         )
-        self.db.bgsave()
+        self.db.save()
         return worker_infos.usage
+
+    def update_run_status(self, id: str, status: RunStatus) -> None:
+        run_metadata = self.get_run(id)
+        run_metadata.status = status
+        self.db.set(f"{id}:metadata", dumps(asdict(run_metadata)))
+        self.db.save()
 
     def list_runs(self) -> List[RunMetadata]:
         keys = self.db.keys(pattern="*:metadata")
@@ -96,7 +99,7 @@ class TorrentDB:
         return "/".join(self.db.db.split("/")[:-1])
 
     def close(self) -> None:
-        self.db.bgsave()
+        self.db.save()
         self.db.shutdown(save=True)
 
     def __enter__(self):
