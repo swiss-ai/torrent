@@ -80,3 +80,6 @@ class TorrentDB:
     def list_workers(self, id: str) -> List[WorkerInfos]:
         keys = self.db.keys(pattern=f"{id}:workers:*")
         return [self.get_worker(id, key.decode("utf-8").split(":")[2]) for key in keys]
+
+    def get_full_path(self) -> str:
+        return self.db.db.replace("torrent.db", "")

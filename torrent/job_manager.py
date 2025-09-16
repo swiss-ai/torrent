@@ -40,6 +40,7 @@ class JobManager:
         environment: str,
         account: str,
         port: int,
+        db_full_path: str,
     ) -> None:
         h, m, s = map(int, time.split(":"))
         duration = (
@@ -66,6 +67,7 @@ class JobManager:
             worker_cmd=f"{run_dir}/worker_command.sh",
             job_name=run_metadata.id,
             wa_run_id=run_metadata.id,
+            wa_db_full_path=db_full_path,
             wa_input_dataset_path=run_metadata.input_dataset_path,
             wa_input_dataset_split=run_metadata.input_dataset_split,
             wa_output_dataset_path=run_metadata.output_dataset_path,

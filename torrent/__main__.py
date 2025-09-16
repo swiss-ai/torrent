@@ -58,6 +58,7 @@ def launch_run(
         environment,
         account,
         port,
+        db.get_full_path(),
     )
 
 
