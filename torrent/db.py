@@ -39,6 +39,13 @@ class TorrentDB:
     def incr_run_index(self, id: str, incr: int = 1) -> int:
         return self.db.incrby(f"{id}:index", incr)
 
+    def put_dataset_info(self, id: str, batch_size: int, total_rows: int) -> None:
+        run_metadata = self.get_run(id)
+        if run_metadata.batch_size is None and run_metadata.total_rows is None:
+            run_metadata.batch_size = batch_size
+            run_metadata.total_rows = total_rows
+            self.db.set(f"{id}:metadata", dumps(asdict(run_metadata)))
+
     def add_worker(self, id: str, worker_infos: WorkerInfos) -> None:
         self.db.set(
             f"{id}:workers:{worker_infos.worker_head_node_id}",
