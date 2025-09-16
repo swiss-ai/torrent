@@ -114,9 +114,10 @@ def print_runs(db: TorrentDB) -> None:
 
     print(table)
 
+
 def attach_run(db: TorrentDB, run_id: str) -> None:
     run = db.get_run(run_id)
-    
+
     with tqdm(total=run.total_rows, desc=run_id) as pbar:
         while (index := db.get_run_index(run_id)) < run.total_rows:
             pbar.n = index

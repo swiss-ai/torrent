@@ -17,7 +17,11 @@ class TorrentDB:
         if not os.path.exists(path):
             os.makedirs(path)
 
-        self.db = Redis(f"{path}/torrent.db")
+        self.db_path = f"{path}/torrent.db"
+        self.db = Redis(self.db_path)
+
+        self.db.config_set("save", "1 1")
+        self.db.config_set("stop-writes-on-bgsave-error", "no")
 
         self.dacite_config = Config(cast=[RunStatus, WorkerStatus])
 
@@ -27,6 +31,7 @@ class TorrentDB:
 
         self.db.set(f"{run_metadata.id}:index", 0)
         self.db.set(f"{run_metadata.id}:metadata", dumps(asdict(run_metadata)))
+        self.db.bgsave()
 
     def get_run(self, id: str) -> RunMetadata:
         return from_dict(
@@ -40,14 +45,10 @@ class TorrentDB:
         return self.db.incrby(f"{id}:index", incr)
 
     def add_worker(self, id: str, worker_infos: WorkerInfos) -> None:
-        out = self.db.set(
-            f"{id}:workers:{worker_infos.worker_head_node_id}",
-            dumps(asdict(worker_infos)),
-        )
-        print(worker_infos, out)
-
-        retrieved = self.get_worker(id, worker_infos.worker_head_node_id)
-        print(worker_infos, retrieved)
+        key = f"{id}:workers:{worker_infos.worker_head_node_id}"
+        out = self.db.set(key, dumps(asdict(worker_infos)))
+        self.db.bgsave()
+        print(f"Added worker {worker_infos.worker_head_node_id} to run {id}: {out}")
 
     def get_worker(self, id: str, worker_head_node_id: str) -> WorkerInfos:
         return from_dict(
@@ -65,6 +66,7 @@ class TorrentDB:
             f"{id}:workers:{worker_head_node_id}",
             dumps(asdict(worker_infos)),
         )
+        self.db.bgsave()
 
     def update_worker_usage(
         self, id: str, worker_head_node_id: str, usage: Usage
@@ -75,15 +77,28 @@ class TorrentDB:
             f"{id}:workers:{worker_head_node_id}",
             dumps(asdict(worker_infos)),
         )
+        self.db.bgsave()
         return worker_infos.usage
 
     def list_runs(self) -> List[RunMetadata]:
         keys = self.db.keys(pattern="*:metadata")
         return [self.get_run(key.decode("utf-8").split(":")[0]) for key in keys]
 
-    def list_workers(self, id: str) -> List[WorkerInfos]:
-        keys = self.db.keys(pattern=f"{id}:workers:*")
-        return [self.get_worker(id, key.decode("utf-8").split(":")[2]) for key in keys]
+    def list_workers(self, run_id: str) -> List[WorkerInfos]:
+        keys = self.db.keys(pattern=f"{run_id}:workers:*")
+        return [
+            self.get_worker(run_id, key.decode("utf-8").split(":")[2]) for key in keys
+        ]
 
     def get_full_path(self) -> str:
         return "/".join(self.db.db.split("/")[:-1])
+
+    def close(self) -> None:
+        self.db.bgsave()
+        self.db.shutdown(save=True)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
