@@ -39,11 +39,15 @@ def get_server_args(model_path: str) -> Optional[ServerArgs]:
         return None
 
 
+def format_int(value: Optional[int]) -> str:
+    return f"{value:,}" if value is not None else "n/a"
+
+
 def print_runs(db: TorrentDB) -> None:
     runs = db.list_runs()
 
     if not runs:
-        print("No runs found.")
+        print("No runs found. Run `torrent launch` to start a new run.")
         return
 
     table = PrettyTable()
@@ -78,7 +82,7 @@ def print_runs(db: TorrentDB) -> None:
         end_time = (
             datetime.fromtimestamp(run.end_time).strftime("%Y-%m-%d %H:%M:%S")
             if run.end_time
-            else "N/A"
+            else "n/a"
         )
 
         model_name = (
@@ -103,11 +107,11 @@ def print_runs(db: TorrentDB) -> None:
                 model_name,
                 input_dataset_name,
                 output_dataset_name,
-                run.total_rows if run.total_rows else "N/A",
-                run.batch_size if run.batch_size else "N/A",
-                total_prompt_tokens,
-                total_completion_tokens,
-                total_cached_tokens,
+                format_int(run.total_rows),
+                format_int(run.batch_size),
+                format_int(total_prompt_tokens),
+                format_int(total_completion_tokens),
+                format_int(total_cached_tokens),
                 end_time,
             ]
         )

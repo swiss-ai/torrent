@@ -39,10 +39,12 @@ class TorrentDB:
         )
 
     def get_run_index(self, id: str) -> int:
-        return self.db.get(f"{id}:index")
+        return int(self.db.get(f"{id}:index"))
 
     def incr_run_index(self, id: str, incr: int = 1) -> int:
-        return self.db.incrby(f"{id}:index", incr)
+        output = self.db.incrby(f"{id}:index", incr)
+        self.db.bgsave()
+        return int(output)
 
     def add_worker(self, id: str, worker_infos: WorkerInfos) -> None:
         key = f"{id}:workers:{worker_infos.worker_head_node_id}"
