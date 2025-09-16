@@ -3,10 +3,7 @@ import stat
 import logging
 import subprocess
 from jinja2 import Template
-from typing import Optional
-from dacite import from_dict
 from dataclasses import asdict
-from omegaconf import OmegaConf
 
 try:
     from importlib.resources import files
@@ -36,6 +33,7 @@ class JobManager:
     def launch(
         self,
         run_metadata: RunMetadata,
+        server_args: ServerArgs,
         workers: int,
         time: str,
         partition: str,
@@ -47,12 +45,6 @@ class JobManager:
         duration = (
             h * 3600 + m * 60 + s
         )  # TODO: attach the duration to each worker so that it can restart if needed
-
-        server_args = self.get_server_args(run_metadata.model_path)
-        if server_args is None:
-            raise ValueError(
-                f"Model currently not supported: {run_metadata.model_path}. You need to add a config file here: https://github.com/swiss-ai/torrent/tree/main/torrent/models"
-            )
 
         run_dir = self.create_run_dir(run_metadata.id)
 
@@ -89,14 +81,6 @@ class JobManager:
     def get_template(self) -> Template:
         template_content = (files("torrent") / "template.jinja").read_text()
         return Template(template_content)
-
-    def get_server_args(self, model_path: str) -> Optional[ServerArgs]:
-        config_filename = f"{model_path.replace('/', '_')}.yaml"
-        try:
-            config_content = (files("torrent") / "models" / config_filename).read_text()
-            return from_dict(ServerArgs, OmegaConf.create(config_content))
-        except FileNotFoundError:
-            return None
 
     def create_run_dir(self, run_id: str) -> str:
         run_dir = f"{TORRENT_PATH}/{run_id}"

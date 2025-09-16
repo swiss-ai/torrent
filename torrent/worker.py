@@ -144,7 +144,7 @@ async def main(worker_args: WorkerArgs, server_args: ServerArgs):
         worker_args.input_dataset_path, worker_args.input_dataset_split
     )
 
-    async with Engine(server_args=server_args) as engine:
+    with Engine(server_args=server_args) as engine:
         db.update_worker_status(
             worker_args.run_id, worker_args.worker_head_node_id, WorkerStatus.RUNNING
         )

@@ -1,8 +1,18 @@
 import os
 import random
 import string
+from dacite import from_dict
 from datetime import datetime
+from omegaconf import OmegaConf
+from typing import Optional
+
+try:
+    from importlib.resources import files
+except ImportError:
+    from importlib_resources import files
+
 from torrent.db import TorrentDB
+from torrent.types import ServerArgs
 from prettytable import PrettyTable
 
 BATCH_SIZE = 512
@@ -16,6 +26,15 @@ def nanoid(length: int = 8) -> str:
 
 def get_default_db() -> TorrentDB:
     return TorrentDB(TORRENT_PATH)
+
+
+def get_server_args(model_path: str) -> Optional[ServerArgs]:
+    config_filename = f"{model_path.replace('/', '_')}.yaml"
+    try:
+        config_content = (files("torrent") / "models" / config_filename).read_text()
+        return from_dict(ServerArgs, OmegaConf.create(config_content))
+    except FileNotFoundError:
+        return None
 
 
 def print_runs(db: TorrentDB) -> None:

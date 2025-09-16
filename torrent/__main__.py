@@ -4,7 +4,7 @@ from datasets import load_from_disk
 
 from torrent.job_manager import JobManager
 from torrent.types import RunMetadata, RunStatus
-from torrent.utils import nanoid, get_default_db, print_runs
+from torrent.utils import nanoid, get_default_db, print_runs, get_server_args
 
 
 def launch_run(
@@ -27,6 +27,13 @@ def launch_run(
     if "input" not in dataset.column_names:
         raise ValueError("Dataset must have an 'input' column")
 
+    server_args = get_server_args(model_path)
+    if server_args is None:
+        raise ValueError(
+            f"Model currently not supported: {run_metadata.model_path}. You need to add a config file here: https://github.com/swiss-ai/torrent/tree/main/torrent/models"
+        )
+
+    batch_size = min(server_args.batch_size, dataset.num_rows)
     run_metadata = RunMetadata(
         id=run_id,
         model_path=model_path,
@@ -34,6 +41,7 @@ def launch_run(
         input_dataset_split=split,
         output_dataset_path=output_dataset_path,
         total_rows=dataset.num_rows,
+        batch_size=batch_size,
         status=RunStatus.RUNNING,
         start_time=int(time.time()),
         end_time=None,
@@ -42,7 +50,14 @@ def launch_run(
 
     job_manager = JobManager()
     job_manager.launch(
-        run_metadata, workers, time_str, partition, environment, account, port
+        run_metadata,
+        server_args,
+        workers,
+        time_str,
+        partition,
+        environment,
+        account,
+        port,
     )
 
 
