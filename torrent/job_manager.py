@@ -55,7 +55,6 @@ class JobManager:
         self.create_sbtach(
             run_dir,
             model_path=run_metadata.model_path,
-            nodes=num_nodes_per_worker * workers,
             workers=workers,
             num_nodes_per_worker=num_nodes_per_worker,
             partition=partition,

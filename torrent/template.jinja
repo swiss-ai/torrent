@@ -6,8 +6,8 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --time={{ time }}
 #SBATCH --exclusive
-#SBATCH --nodes={{ nodes }}
-#SBATCH --ntasks={{ nodes }}
+#SBATCH --nodes={{ num_nodes_per_worker }}
+#SBATCH --ntasks={{ num_nodes_per_worker }}
 #SBATCH --partition={{ partition }}
 #SBATCH --environment={{ environment }}
 #SBATCH --output={{ log_dir }}/log.out
@@ -20,7 +20,6 @@ EP_SIZE={{ ep_size }}
 CUDA_GRAPH_MAX_BS={{ cuda_graph_max_bs }}
 GRAMMAR_BACKEND={{ grammar_backend }}
 MODEL_PATH={{ model_path }}
-NODES={{ nodes }}
 WORKERS={{ workers }}
 NODES_PER_WORKER={{ num_nodes_per_worker }}
 LOG_DIR={{ log_dir }}
@@ -37,8 +36,8 @@ WA_TOKEN_USAGE_THRESHOLD={{ wa_token_usage_threshold }}
 {% raw %}
 
 nodes=($(scontrol show hostnames $SLURM_NODELIST))
-if [ ${#nodes[@]} -ne $NODES ]; then
-    echo "[ERROR]: Expected $NODES nodes but got ${#nodes[@]} nodes"
+if [ ${#nodes[@]} -ne $NODES_PER_WORKER ]; then
+    echo "[ERROR]: Expected $NODES_PER_WORKER nodes but got ${#nodes[@]} nodes"
     exit 1
 fi
 
