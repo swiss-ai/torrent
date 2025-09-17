@@ -91,12 +91,9 @@ async def async_processing_loop(
 
     while True:
         while len(pending_requests) < max_concurrent_requests:
-            try:
-                token_usage = get_token_usage(engine.tokenizer_manager)
-                if token_usage >= token_usage_threshold:
-                    break
-            except Exception:
-                pass
+            token_usage = get_token_usage(engine)
+            if token_usage is None or token_usage >= token_usage_threshold:
+                break
 
             index = db.incr_run_index(id, batch_size)
             if index >= len(input_dataset):
