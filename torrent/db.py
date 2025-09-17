@@ -18,78 +18,88 @@ class TorrentDB:
             os.makedirs(path)
 
         self.db_path = f"{path}/torrent.db"
-        self.db = sqlite3.connect(
-            self.db_path, check_same_thread=False, timeout=10
-        )
+        self.db = sqlite3.connect(self.db_path, check_same_thread=False, timeout=10)
         self.db.execute("PRAGMA journal_mode=WAL;")
         self.db.execute("PRAGMA synchronous=NORMAL;")
         self.db.execute(
-            "CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT)"
+            "CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, metadata TEXT)"
+        )
+        self.db.execute(
+            """CREATE TABLE IF NOT EXISTS workers (
+                run_id TEXT,
+                worker_head_node_id TEXT,
+                infos TEXT,
+                PRIMARY KEY (run_id, worker_head_node_id)
+            )"""
+        )
+        self.db.execute(
+            "CREATE TABLE IF NOT EXISTS indices (run_id TEXT PRIMARY KEY, value INTEGER)"
         )
         self.db.commit()
 
         self.dacite_config = Config(cast=[RunStatus, WorkerStatus])
 
-    def _get(self, key: str) -> Optional[str]:
-        cursor = self.db.cursor()
-        cursor.execute("SELECT value FROM kv WHERE key = ?", (key,))
-        row = cursor.fetchone()
-        return row[0] if row else None
-
-    def _set(self, key: str, value: str) -> None:
-        with self.db:
-            self.db.execute(
-                "INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)", (key, value)
-            )
-
-    def _keys(self, pattern: str) -> List[str]:
-        cursor = self.db.cursor()
-        sql_pattern = pattern.replace("*", "%")
-        cursor.execute("SELECT key FROM kv WHERE key LIKE ?", (sql_pattern,))
-        return [row[0] for row in cursor.fetchall()]
-
     def add_run(self, run_metadata: RunMetadata) -> None:
-        if self._get(f"{run_metadata.id}:metadata") is not None:
-            raise ValueError(f"Run {run_metadata.id} already exists")
-
-        self._set(f"{run_metadata.id}:index", "0")
-        self._set(f"{run_metadata.id}:metadata", dumps(asdict(run_metadata)))
-
-    def get_run(self, id: str) -> RunMetadata:
-        value = self._get(f"{id}:metadata")
-        if value is None:
-            raise ValueError(f"Run {id} not found")
-        return from_dict(RunMetadata, loads(value), config=self.dacite_config)
-
-    def get_run_index(self, id: str) -> int:
-        value = self._get(f"{id}:index")
-        return int(value) if value is not None else 0
-
-    def incr_run_index(self, id: str, incr: int = 1) -> int:
-        key = f"{id}:index"
         with self.db:
             cursor = self.db.cursor()
-            cursor.execute("SELECT value FROM kv WHERE key = ?", (key,))
+            cursor.execute("SELECT id FROM runs WHERE id = ?", (run_metadata.id,))
+            if cursor.fetchone() is not None:
+                raise ValueError(f"Run {run_metadata.id} already exists")
+
+            cursor.execute(
+                "INSERT INTO runs (id, metadata) VALUES (?, ?)",
+                (run_metadata.id, dumps(asdict(run_metadata))),
+            )
+            cursor.execute(
+                "INSERT INTO indices (run_id, value) VALUES (?, ?)", (run_metadata.id, 0)
+            )
+
+    def get_run(self, id: str) -> RunMetadata:
+        cursor = self.db.cursor()
+        cursor.execute("SELECT metadata FROM runs WHERE id = ?", (id,))
+        row = cursor.fetchone()
+        if row is None:
+            raise ValueError(f"Run {id} not found")
+        return from_dict(RunMetadata, loads(row[0]), config=self.dacite_config)
+
+    def get_run_index(self, id: str) -> int:
+        cursor = self.db.cursor()
+        cursor.execute("SELECT value FROM indices WHERE run_id = ?", (id,))
+        row = cursor.fetchone()
+        return row[0] if row else 0
+
+    def incr_run_index(self, id: str, incr: int = 1) -> int:
+        with self.db:
+            cursor = self.db.cursor()
+            cursor.execute("SELECT value FROM indices WHERE run_id = ?", (id,))
             row = cursor.fetchone()
-            current_value = int(row[0]) if row and row[0] is not None else 0
+            current_value = row[0] if row else 0
             new_value = current_value + incr
             cursor.execute(
-                "INSERT OR REPLACE INTO kv (key, value) VALUES (?, ?)",
-                (key, str(new_value)),
+                "INSERT OR REPLACE INTO indices (run_id, value) VALUES (?, ?)",
+                (id, new_value),
             )
         return new_value
 
     def add_worker(self, id: str, worker_infos: WorkerInfos) -> None:
-        key = f"{id}:workers:{worker_infos.worker_head_node_id}"
-        self._set(key, dumps(asdict(worker_infos)))
+        with self.db:
+            self.db.execute(
+                "INSERT INTO workers (run_id, worker_head_node_id, infos) VALUES (?, ?, ?)",
+                (id, worker_infos.worker_head_node_id, dumps(asdict(worker_infos))),
+            )
 
     def get_worker(self, id: str, worker_head_node_id: str) -> WorkerInfos:
-        value = self._get(f"{id}:workers:{worker_head_node_id}")
-        if value is None:
+        cursor = self.db.cursor()
+        cursor.execute(
+            "SELECT infos FROM workers WHERE run_id = ? AND worker_head_node_id = ?",
+            (id, worker_head_node_id),
+        )
+        row = cursor.fetchone()
+        if row is None:
             raise ValueError(f"Worker {worker_head_node_id} for run {id} not found")
         return from_dict(
             WorkerInfos,
-            loads(value),
+            loads(row[0]),
             config=self.dacite_config,
         )
 
@@ -98,35 +108,47 @@ class TorrentDB:
     ) -> None:
         worker_infos = self.get_worker(id, worker_head_node_id)
         worker_infos.status = status
-        self._set(
-            f"{id}:workers:{worker_head_node_id}",
-            dumps(asdict(worker_infos)),
-        )
+        with self.db:
+            self.db.execute(
+                "UPDATE workers SET infos = ? WHERE run_id = ? AND worker_head_node_id = ?",
+                (dumps(asdict(worker_infos)), id, worker_head_node_id),
+            )
 
     def update_worker_usage(
         self, id: str, worker_head_node_id: str, usage: Usage
     ) -> Usage:
         worker_infos = self.get_worker(id, worker_head_node_id)
         worker_infos.add_usage(usage)
-        self._set(
-            f"{id}:workers:{worker_head_node_id}",
-            dumps(asdict(worker_infos)),
-        )
+        with self.db:
+            self.db.execute(
+                "UPDATE workers SET infos = ? WHERE run_id = ? AND worker_head_node_id = ?",
+                (dumps(asdict(worker_infos)), id, worker_head_node_id),
+            )
         return worker_infos.usage
 
     def update_run_status(self, id: str, status: RunStatus) -> None:
         run_metadata = self.get_run(id)
         run_metadata.status = status
-        self._set(f"{id}:metadata", dumps(asdict(run_metadata)))
+        with self.db:
+            self.db.execute(
+                "UPDATE runs SET metadata = ? WHERE id = ?",
+                (dumps(asdict(run_metadata)), id),
+            )
 
     def list_runs(self) -> List[RunMetadata]:
-        keys = self._keys("*:metadata")
-        return [self.get_run(key.split(":")[0]) for key in keys]
+        cursor = self.db.cursor()
+        cursor.execute("SELECT metadata FROM runs")
+        return [
+            from_dict(RunMetadata, loads(row[0]), config=self.dacite_config)
+            for row in cursor.fetchall()
+        ]
 
     def list_workers(self, run_id: str) -> List[WorkerInfos]:
-        keys = self._keys(f"{run_id}:workers:*")
+        cursor = self.db.cursor()
+        cursor.execute("SELECT infos FROM workers WHERE run_id = ?", (run_id,))
         return [
-            self.get_worker(run_id, key.split(":")[2]) for key in keys
+            from_dict(WorkerInfos, loads(row[0]), config=self.dacite_config)
+            for row in cursor.fetchall()
         ]
 
     def get_full_path(self) -> str:
