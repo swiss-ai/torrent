@@ -121,6 +121,15 @@ def print_runs(db: TorrentDB) -> None:
         workers = db.list_workers(run.id)
         index = db.get_run_index(run.id)
 
+        run_status = run.status
+        run_end_time = run.end_time
+        if run_status == RunStatus.RUNNING and index >= run.total_rows:
+            run_status = RunStatus.COMPLETED
+            db.update_run_status(run.id, run_status)
+
+            run_end_time = max(worker.end_generation_time for worker in workers)
+            db.update_run_end_time(run.id, run_end_time)
+
         total_prompt_tokens = sum(worker.usage.prompt_tokens for worker in workers)
         total_completion_tokens = sum(
             worker.usage.completion_tokens for worker in workers
@@ -130,9 +139,9 @@ def print_runs(db: TorrentDB) -> None:
         start_time = datetime.fromtimestamp(run.start_time).strftime(
             "%Y-%m-%d %H:%M:%S"
         )
-        end_time = (
-            datetime.fromtimestamp(run.end_time).strftime("%Y-%m-%d %H:%M:%S")
-            if run.end_time
+        run_end_time_str = (
+            datetime.fromtimestamp(run_end_time).strftime("%Y-%m-%d %H:%M:%S")
+            if run_end_time
             else "n/a"
         )
 
@@ -153,10 +162,10 @@ def print_runs(db: TorrentDB) -> None:
         table.add_row(
             [
                 run.id,
-                run.status.value,
+                run_status.value,
                 start_time,
                 model_name,
-                f"{index / run.total_rows * 100:.2f}%",
+                f"{min(index / run.total_rows, 1) * 100:.2f}%",
                 input_dataset_name,
                 output_dataset_name,
                 format_int(run.total_rows),
@@ -164,7 +173,7 @@ def print_runs(db: TorrentDB) -> None:
                 format_int(total_prompt_tokens),
                 format_int(total_completion_tokens),
                 format_int(total_cached_tokens),
-                end_time,
+                run_end_time_str,
             ]
         )
 

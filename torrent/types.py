@@ -55,6 +55,8 @@ class WorkerInfos:
     worker_head_node_id: str
     status: WorkerStatus
     usage: Usage
+    start_generation_time: int
+    end_generation_time: Optional[int] = None
 
     def add_usage(self, usage: Usage) -> None:
         self.usage = self.usage.add(usage)

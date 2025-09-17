@@ -1,6 +1,7 @@
 import os
 import zmq
 import sys
+import time
 import asyncio
 from dacite import from_dict
 from datasets import Dataset, load_from_disk
@@ -36,10 +37,11 @@ def parse_worker_args(argv: str) -> WorkerArgs:
 
 def get_token_usage(engine: Engine) -> Optional[float]:
     req = RpcReqInput(method="_get_token_info")
-    
+
     engine.send_to_rpc.send_pyobj(req)
     recv_req = engine.send_to_rpc.recv_pyobj(zmq.BLOCKY)
     assert isinstance(recv_req, RpcReqOutput)
+    print(recv_req.message)
 
     if recv_req.success:
         _, token_usage, _, _ = recv_req.message
@@ -145,6 +147,7 @@ async def main(worker_args: WorkerArgs, server_args: ServerArgs):
         worker_head_node_id=worker_args.worker_head_node_id,
         status=WorkerStatus.STARTING,
         usage=Usage.zero(),
+        start_generation_time=int(time.time()),
     )
 
     db.add_worker(worker_args.run_id, worker_infos)
@@ -174,6 +177,10 @@ async def main(worker_args: WorkerArgs, server_args: ServerArgs):
 
     db.update_worker_status(
         worker_args.run_id, worker_args.worker_head_node_id, WorkerStatus.STOPPED
+    )
+
+    db.update_worker_end_generation_time(
+        worker_args.run_id, worker_args.worker_head_node_id, int(time.time())
     )
 
 

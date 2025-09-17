@@ -200,6 +200,21 @@ class TorrentDB:
 
         return self._retry_operation(_update_worker_usage_operation)
 
+    def update_worker_end_generation_time(
+        self, id: str, worker_head_node_id: str, end_generation_time: int
+    ) -> None:
+        def _update_worker_end_generation_time_operation():
+            worker_infos = self.get_worker(id, worker_head_node_id)
+            worker_infos.end_generation_time = end_generation_time
+            with self._get_connection() as conn:
+                conn.execute(
+                    "UPDATE workers SET infos = ? WHERE run_id = ? AND worker_head_node_id = ?",
+                    (dumps(asdict(worker_infos)), id, worker_head_node_id),
+                )
+                conn.commit()
+
+        self._retry_operation(_update_worker_end_generation_time_operation)
+
     def update_run_status(self, id: str, status: RunStatus) -> None:
         def _update_run_status_operation():
             run_metadata = self.get_run(id)
@@ -212,6 +227,19 @@ class TorrentDB:
                 conn.commit()
 
         self._retry_operation(_update_run_status_operation)
+
+    def update_run_end_time(self, id: str, end_time: int) -> None:
+        def _update_run_end_time_operation():
+            run_metadata = self.get_run(id)
+            run_metadata.end_time = end_time
+            with self._get_connection() as conn:
+                conn.execute(
+                    "UPDATE runs SET metadata = ? WHERE id = ?",
+                    (dumps(asdict(run_metadata)), id),
+                )
+                conn.commit()
+
+        self._retry_operation(_update_run_end_time_operation)
 
     def list_runs(self) -> List[RunMetadata]:
         def _list_runs_operation():
