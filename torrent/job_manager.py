@@ -113,7 +113,7 @@ index 16b87e16..2247aadc 100644
  
  @dataclass
 diff --git a/python/sglang/srt/managers/scheduler.py b/python/sglang/srt/managers/scheduler.py
-index f2697e75..004a146f 100644
+index f2697e75..2148f119 100644
 --- a/python/sglang/srt/managers/scheduler.py
 +++ b/python/sglang/srt/managers/scheduler.py
 @@ -2413,14 +2413,17 @@ class Scheduler(
@@ -132,7 +132,7 @@ index f2697e75..004a146f 100644
  
          barrier()
 -        return RpcReqOutput(success, "" if not exec else str(exec))
-+        return RpcReqOutput(success, "" if not exec else exec)
++        return RpcReqOutput(success, exec)
  
      def abort_request(self, recv_req: AbortReq):
          # Delete requests in the waiting queue
