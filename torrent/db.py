@@ -1,7 +1,6 @@
 import os
 import sqlite3
 import warnings
-from filelock import FileLock
 
 warnings.filterwarnings("ignore")
 
@@ -19,20 +18,12 @@ class TorrentDB:
             os.makedirs(path)
 
         self.db_path = f"{path}/torrent.db"
-        lock_path = f"{self.db_path}.lock"
+        db_exists = os.path.exists(self.db_path)
         self.db = sqlite3.connect(self.db_path, check_same_thread=False, timeout=10)
-
-        with FileLock(lock_path):
-            cursor = self.db.cursor()
-
-            cursor.execute("PRAGMA synchronous")
-            if cursor.fetchone()[0] != 1:  # NORMAL is 1
-                cursor.execute("PRAGMA synchronous=NORMAL;")
-
-            cursor.execute("PRAGMA journal_mode")
-            if cursor.fetchone()[0] != "wal":
-                self.db.execute("PRAGMA journal_mode=WAL;")
-
+        
+        if not db_exists:
+            self.db.execute("PRAGMA journal_mode=WAL;")
+            self.db.execute("PRAGMA synchronous=NORMAL;")
             self.db.execute(
                 "CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, metadata TEXT)"
             )
