@@ -7,7 +7,7 @@ from tqdm import tqdm
 from dacite import from_dict
 from datetime import datetime
 from omegaconf import OmegaConf
-from typing import Optional, List
+from typing import Optional
 
 try:
     from importlib.resources import files

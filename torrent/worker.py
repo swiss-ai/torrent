@@ -88,7 +88,7 @@ async def async_processing_loop(
                 token_usage = get_token_usage(engine.tokenizer_manager)
                 if token_usage >= token_usage_threshold:
                     break
-            except:
+            except Exception:
                 pass
 
             index = db.incr_run_index(id, batch_size)

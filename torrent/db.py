@@ -3,16 +3,15 @@ import time
 import random
 import sqlite3
 import warnings
-from contextlib import contextmanager
-
-warnings.filterwarnings("ignore")
-
 from json import dumps, loads
 from dataclasses import asdict
 from typing import List, Generator
 from dacite import from_dict, Config
+from contextlib import contextmanager
 
 from torrent.types import RunMetadata, WorkerInfos, WorkerStatus, RunStatus, Usage
+
+warnings.filterwarnings("ignore")
 
 
 class TorrentDB:
@@ -22,7 +21,7 @@ class TorrentDB:
 
         self.db_path = f"{path}/torrent.db"
         self.dacite_config = Config(cast=[RunStatus, WorkerStatus])
-        
+
         self._initialize_db()
 
     def _initialize_db(self) -> None:
@@ -50,11 +49,7 @@ class TorrentDB:
 
     @contextmanager
     def _get_connection(self) -> Generator[sqlite3.Connection, None, None]:
-        conn = sqlite3.connect(
-            self.db_path, 
-            timeout=30,
-            check_same_thread=False
-        )
+        conn = sqlite3.connect(self.db_path, timeout=30, check_same_thread=False)
         try:
             conn.execute("PRAGMA busy_timeout=30000;")
             conn.execute("PRAGMA journal_mode=WAL;")
@@ -63,17 +58,22 @@ class TorrentDB:
         finally:
             conn.close()
 
-    def _retry_operation(self, operation, max_retries: int = 5, base_delay: float = 0.1):
+    def _retry_operation(
+        self, operation, max_retries: int = 5, base_delay: float = 0.1
+    ):
         for attempt in range(max_retries):
             try:
                 return operation()
             except (sqlite3.OperationalError, sqlite3.DatabaseError) as e:
                 print(f"[DB] {e}")
-                if "locking protocol" in str(e).lower() or "database is locked" in str(e).lower():
+                if (
+                    "locking protocol" in str(e).lower()
+                    or "database is locked" in str(e).lower()
+                ):
                     if attempt == max_retries - 1:
                         raise
-                    
-                    delay = base_delay * (2 ** attempt) + random.uniform(0, 0.1)
+
+                    delay = base_delay * (2**attempt) + random.uniform(0, 0.1)
                     time.sleep(delay)
                 else:
                     raise
@@ -91,7 +91,8 @@ class TorrentDB:
                     (run_metadata.id, dumps(asdict(run_metadata))),
                 )
                 cursor.execute(
-                    "INSERT INTO indices (run_id, value) VALUES (?, ?)", (run_metadata.id, 0)
+                    "INSERT INTO indices (run_id, value) VALUES (?, ?)",
+                    (run_metadata.id, 0),
                 )
                 conn.commit()
 
@@ -157,7 +158,9 @@ class TorrentDB:
                 )
                 row = cursor.fetchone()
                 if row is None:
-                    raise ValueError(f"Worker {worker_head_node_id} for run {id} not found")
+                    raise ValueError(
+                        f"Worker {worker_head_node_id} for run {id} not found"
+                    )
                 return from_dict(
                     WorkerInfos,
                     loads(row[0]),

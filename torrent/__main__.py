@@ -36,7 +36,7 @@ def launch_run(
     server_args = get_server_args(model_path)
     if server_args is None:
         raise ValueError(
-            f"Model currently not supported: {run_metadata.model_path}. You need to add a config file here: https://github.com/swiss-ai/torrent/tree/main/torrent/models"
+            f"Model currently not supported: {model_path}. You need to add a config file here: https://github.com/swiss-ai/torrent/tree/main/torrent/models"
         )
 
     batch_size = min(server_args.batch_size, dataset.num_rows)
@@ -72,7 +72,7 @@ def main():
     parser = ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    list_parser = subparsers.add_parser("list", help="List all runs")
+    subparsers.add_parser("list", help="List all runs")
 
     attach_parser = subparsers.add_parser("attach", help="Attach to a run")
     attach_parser.add_argument(

@@ -14,18 +14,6 @@ from torrent.types import RunMetadata, ServerArgs
 from torrent.utils import TORRENT_PATH, NUM_GPU_PER_NODE
 
 
-WORKER_COMMAND_CONTENT = """\
-#!/bin/bash
-
-export no_proxy="0.0.0.0,$no_proxy"
-export NO_PROXY="0.0.0.0,$NO_PROXY"
-
-pip install git+https://github.com/swiss-ai/torrent.git
-
-python -m torrent.worker "$@"
-"""
-
-
 class JobManager:
     def __init__(self) -> None:
         self.template = self.get_template()
@@ -90,12 +78,14 @@ class JobManager:
 
     def get_worker_command_content(self, model_path: str) -> str:
         extra_env = (
-            f'export SGL_ENABLE_JIT_DEEPGEMM="false"'
+            'export SGL_ENABLE_JIT_DEEPGEMM="false"'
             if model_path == "deepseek-ai/DeepSeek-V3.1"
             else ""
         )
         return f"""\
 #!/bin/bash
+
+set -x
 
 export no_proxy="0.0.0.0,$no_proxy"
 export NO_PROXY="0.0.0.0,$NO_PROXY"
@@ -131,7 +121,7 @@ EOF
     git apply /sgl-workspace/sgl.patch
 
     cd /sgl-workspace/sglang/python
-    
+
     pip install . --no-deps --force-reinstall
 
     rm /sgl-workspace/sgl.patch
@@ -186,7 +176,7 @@ fi
             logging.error(f"Error parsing job ID from sbatch output: {result.stdout}")
             raise
 
-    def cancel_job(self, job_id: int) -> None:
+    def cancel_job(self, job_id: int) -> bool:
         try:
             subprocess.run(
                 ["scancel", job_id],
@@ -195,7 +185,8 @@ fi
                 check=True,
             )
             logging.info(f"Job {job_id} cancelled successfully")
+            return True
         except subprocess.CalledProcessError as e:
             logging.error(f"Error cancelling job {job_id}: {e}")
             logging.error(f"stderr: {e.stderr}")
-            raise
+            return False
