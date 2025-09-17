@@ -15,6 +15,7 @@ setup(
         "omegaconf",
         "redislite",
         "prettytable",
+        "filelock",
         "importlib_resources; python_version<'3.9'"
     ],
     python_requires=">=3.8",
