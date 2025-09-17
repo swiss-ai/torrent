@@ -21,11 +21,14 @@ class TorrentDB:
         self.db_path = f"{path}/torrent.db"
         lock_path = f"{self.db_path}.lock"
         self.db = sqlite3.connect(self.db_path, check_same_thread=False, timeout=10)
-        
-        self.db.execute("PRAGMA synchronous=NORMAL;")
 
         with FileLock(lock_path):
             cursor = self.db.cursor()
+
+            cursor.execute("PRAGMA synchronous")
+            if cursor.fetchone()[0] != 1:  # NORMAL is 1
+                cursor.execute("PRAGMA synchronous=NORMAL;")
+
             cursor.execute("PRAGMA journal_mode")
             if cursor.fetchone()[0] != "wal":
                 self.db.execute("PRAGMA journal_mode=WAL;")
