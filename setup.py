@@ -13,7 +13,6 @@ setup(
         "jinja2", 
         "dacite",
         "omegaconf",
-        "redislite",
         "prettytable",
         "filelock",
         "importlib_resources; python_version<'3.9'"
