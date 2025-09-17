@@ -105,6 +105,7 @@ def print_runs(db: TorrentDB) -> None:
         "Status",
         "Start Time",
         "Model",
+        "Progress",
         "Input Dataset",
         "Output Dataset",
         "Total Rows",
@@ -118,6 +119,7 @@ def print_runs(db: TorrentDB) -> None:
 
     for run in sorted(runs, key=lambda x: x.start_time, reverse=True):
         workers = db.list_workers(run.id)
+        index = db.get_run_index(run.id)
 
         total_prompt_tokens = sum(worker.usage.prompt_tokens for worker in workers)
         total_completion_tokens = sum(
@@ -154,6 +156,7 @@ def print_runs(db: TorrentDB) -> None:
                 run.status.value,
                 start_time,
                 model_name,
+                f"{index / run.total_rows * 100:.2f}%",
                 input_dataset_name,
                 output_dataset_name,
                 format_int(run.total_rows),

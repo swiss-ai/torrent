@@ -64,8 +64,8 @@ class JobManager:
             **asdict(server_args),
         )
 
-        for _ in range(workers):
-            self.submit_job(run_dir)
+        for i in range(workers):
+            self.submit_job(run_dir, i)
 
     def get_template(self) -> Template:
         template_content = (files("torrent") / "template.jinja").read_text()
@@ -155,10 +155,10 @@ fi
         current_permissions = os.stat(sbatch_path).st_mode
         os.chmod(sbatch_path, current_permissions | stat.S_IEXEC)
 
-    def submit_job(self, job_dir: str) -> int:
+    def submit_job(self, job_dir: str, worker_id: int) -> int:
         try:
             result = subprocess.run(
-                ["sbatch", f"{job_dir}/sbatch.sh"],
+                ["sbatch", f"{job_dir}/sbatch.sh", str(worker_id)],
                 capture_output=True,
                 text=True,
                 check=True,
