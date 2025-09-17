@@ -1,15 +1,15 @@
 import os
+import zmq
 import sys
 import asyncio
 from dacite import from_dict
-from typing import Dict, Any, List, Tuple
 from datasets import Dataset, load_from_disk
 from sglang.srt.server_args import ServerArgs
 from sglang.srt.utils import kill_process_tree
 from sglang.srt.entrypoints.engine import Engine
-from sglang.srt.managers.io_struct import RpcReqInput
+from typing import Dict, Any, List, Tuple, Optional
 from sglang.srt.server_args import prepare_server_args
-from sglang.srt.managers.tokenizer_manager import TokenizerManager
+from sglang.srt.managers.io_struct import RpcReqInput, RpcReqOutput
 
 from torrent.db import TorrentDB
 from torrent.types import WorkerArgs, WorkerStatus, Usage, WorkerInfos
@@ -34,11 +34,18 @@ def parse_worker_args(argv: str) -> WorkerArgs:
     )
 
 
-def get_token_usage(tokenizer_manager: TokenizerManager) -> float:
+def get_token_usage(engine: Engine) -> Optional[float]:
     req = RpcReqInput(method="_get_token_info")
+    
+    engine.send_to_rpc.send_pyobj(req)
+    recv_req = engine.send_to_rpc.recv_pyobj(zmq.BLOCKY)
+    assert isinstance(recv_req, RpcReqOutput)
 
-    _, token_usage, _, _ = tokenizer_manager.send_to_scheduler.send_pyobj(req)
-    return token_usage
+    if recv_req.success:
+        _, token_usage, _, _ = recv_req.message
+        return token_usage
+
+    return None
 
 
 def load_dataset(dataset_path: str, split: str) -> Dataset:

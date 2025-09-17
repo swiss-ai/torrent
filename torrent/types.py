@@ -83,4 +83,4 @@ class ServerArgs:
     grammar_backend: Literal["llguidance", "xgrammar"] = "llguidance"
     batch_size: int = 256
     max_concurrent_requests: int = 16
-    token_usage_threshold: float = 0.8
+    token_usage_threshold: float = 0.7

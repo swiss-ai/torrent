@@ -43,7 +43,6 @@ class JobManager:
         self.create_sbtach(
             run_dir,
             model_path=run_metadata.model_path,
-            workers=workers,
             num_nodes_per_worker=num_nodes_per_worker,
             partition=partition,
             environment=environment,
@@ -100,22 +99,43 @@ if [ "$local_rank" -eq 0 ]; then
     cd /sgl-workspace/sglang
 
     cat > /sgl-workspace/sgl.patch << 'EOF'
+diff --git a/python/sglang/srt/managers/io_struct.py b/python/sglang/srt/managers/io_struct.py
+index 16b87e16..2247aadc 100644
+--- a/python/sglang/srt/managers/io_struct.py
++++ b/python/sglang/srt/managers/io_struct.py
+@@ -1310,7 +1310,7 @@ class RpcReqInput:
+ @dataclass
+ class RpcReqOutput:
+     success: bool
+-    message: str
++    message: Optional[Any] = None
+ 
+ 
+ @dataclass
 diff --git a/python/sglang/srt/managers/scheduler.py b/python/sglang/srt/managers/scheduler.py
-index f2697e75..9ae42f5b 100644
+index f2697e75..004a146f 100644
 --- a/python/sglang/srt/managers/scheduler.py
 +++ b/python/sglang/srt/managers/scheduler.py
-@@ -2413,7 +2413,10 @@ class Scheduler(
+@@ -2413,14 +2413,17 @@ class Scheduler(
          exec = None
          try:
              func = getattr(self, recv_req.method)
 -            func(recv_req.parameters)
 +            if recv_req.parameters:
-+                func(recv_req.parameters)
++                exec = func(recv_req.parameters)
 +            else:
-+                func()
++                exec = func()
          except Exception as e:
              success = False
              exec = e
+             logger.error(f"Failed to call rpc {{recv_req.method}}: {{str(e)}}")
+ 
+         barrier()
+-        return RpcReqOutput(success, "" if not exec else str(exec))
++        return RpcReqOutput(success, "" if not exec else exec)
+ 
+     def abort_request(self, recv_req: AbortReq):
+         # Delete requests in the waiting queue
 EOF
 
     git apply /sgl-workspace/sgl.patch
