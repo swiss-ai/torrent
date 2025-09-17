@@ -106,6 +106,38 @@ local_rank=$1
 
 if [ "$local_rank" -eq 0 ]; then
     shift 1
+
+    cd /sgl-workspace/sglang
+
+    cat > /sgl-workspace/sgl.patch << 'EOF'
+diff --git a/python/sglang/srt/managers/scheduler.py b/python/sglang/srt/managers/scheduler.py
+index f2697e75..9ae42f5b 100644
+--- a/python/sglang/srt/managers/scheduler.py
++++ b/python/sglang/srt/managers/scheduler.py
+@@ -2413,7 +2413,10 @@ class Scheduler(
+         exec = None
+         try:
+             func = getattr(self, recv_req.method)
+-            func(recv_req.parameters)
++            if recv_req.parameters:
++                func(recv_req.parameters)
++            else:
++                func()
+         except Exception as e:
+             success = False
+             exec = e
+EOF
+
+    git apply /sgl-workspace/sgl.patch
+
+    cd /sgl-workspace/sglang/python
+    
+    pip install . --no-deps --force-reinstall
+
+    rm /sgl-workspace/sgl.patch
+
+    cd /sgl-workspace
+
     pip install git+https://github.com/swiss-ai/torrent.git
 
     python -m torrent.worker "$@"

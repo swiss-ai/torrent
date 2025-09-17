@@ -35,11 +35,10 @@ def parse_worker_args(argv: str) -> WorkerArgs:
 
 
 def get_token_usage(tokenizer_manager: TokenizerManager) -> float:
-    # req = RpcReqInput(method="_get_token_info")
+    req = RpcReqInput(method="_get_token_info")
 
-    # _, token_usage, _, _ = tokenizer_manager.send_to_scheduler.send_pyobj(req)
-    # return token_usage
-    return 0.0
+    _, token_usage, _, _ = tokenizer_manager.send_to_scheduler.send_pyobj(req)
+    return token_usage
 
 
 def load_dataset(dataset_path: str, split: str) -> Dataset:

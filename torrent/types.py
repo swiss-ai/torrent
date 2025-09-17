@@ -64,7 +64,6 @@ class WorkerInfos:
 class WorkerArgs:
     run_id: str
     job_id: str
-    rank: int
     db_full_path: str
     worker_head_node_id: str
     input_dataset_path: str
