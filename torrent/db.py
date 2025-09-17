@@ -23,17 +23,15 @@ class TorrentDB:
         self.db_path = f"{path}/torrent.db"
         self.dacite_config = Config(cast=[RunStatus, WorkerStatus])
         
-        # Initialize database if it doesn't exist
         self._initialize_db()
 
     def _initialize_db(self) -> None:
-        """Initialize the database with proper schema if it doesn't exist."""
         db_exists = os.path.exists(self.db_path)
         if not db_exists:
             with self._get_connection() as conn:
                 conn.execute("PRAGMA journal_mode=WAL;")
                 conn.execute("PRAGMA synchronous=NORMAL;")
-                conn.execute("PRAGMA busy_timeout=30000;")  # 30 seconds
+                conn.execute("PRAGMA busy_timeout=30000;")
                 conn.execute(
                     "CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, metadata TEXT)"
                 )
@@ -52,15 +50,13 @@ class TorrentDB:
 
     @contextmanager
     def _get_connection(self) -> Generator[sqlite3.Connection, None, None]:
-        """Get a database connection with proper timeout and configuration."""
         conn = sqlite3.connect(
             self.db_path, 
-            timeout=30,  # 30 seconds timeout
+            timeout=30,
             check_same_thread=False
         )
         try:
-            # Set pragma settings for each connection
-            conn.execute("PRAGMA busy_timeout=30000;")  # 30 seconds
+            conn.execute("PRAGMA busy_timeout=30000;")
             conn.execute("PRAGMA journal_mode=WAL;")
             conn.execute("PRAGMA synchronous=NORMAL;")
             yield conn
@@ -68,7 +64,6 @@ class TorrentDB:
             conn.close()
 
     def _retry_operation(self, operation, max_retries: int = 5, base_delay: float = 0.1):
-        """Retry database operations with exponential backoff."""
         for attempt in range(max_retries):
             try:
                 return operation()
@@ -76,13 +71,12 @@ class TorrentDB:
                 print(f"[DB] {e}")
                 if "locking protocol" in str(e).lower() or "database is locked" in str(e).lower():
                     if attempt == max_retries - 1:
-                        raise  # Re-raise on final attempt
+                        raise
                     
-                    # Exponential backoff with jitter
                     delay = base_delay * (2 ** attempt) + random.uniform(0, 0.1)
                     time.sleep(delay)
                 else:
-                    raise  # Re-raise immediately for non-locking errors
+                    raise
 
     def add_run(self, run_metadata: RunMetadata) -> None:
         def _add_run_operation():
@@ -242,9 +236,3 @@ class TorrentDB:
 
     def get_full_path(self) -> str:
         return os.path.dirname(self.db_path)
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()

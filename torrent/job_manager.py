@@ -100,11 +100,19 @@ class JobManager:
 export no_proxy="0.0.0.0,$no_proxy"
 export NO_PROXY="0.0.0.0,$NO_PROXY"
 
+local_rank=$1
+
 {extra_env}
 
-pip install git+https://github.com/swiss-ai/torrent.git
+if [ "$local_rank" -eq 0 ]; then
+    shift 1
+    pip install git+https://github.com/swiss-ai/torrent.git
 
-python -m torrent.worker "$@"
+    python -m torrent.worker "$@"
+else
+    shift 2
+    python -m sglang.launch_server "$@"
+fi
         """
 
     def create_script(self, job_dir: str, model_path: str) -> None:
