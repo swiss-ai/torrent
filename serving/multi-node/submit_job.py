@@ -59,6 +59,9 @@ def parse_args():
     parser.add_argument("--ep-size", type=int, default=1)
     parser.add_argument("--cuda-graph-max-bs", type=int, default=256)
     parser.add_argument("--grammar-backend", type=str, default="llguidance")
+    parser.add_argument("--use-router", action="store_true", help="Start a router when workers > 1")
+    parser.add_argument("--router-policy", type=str, default="cache_aware", help="Routing policy (random, round_robin, cache_aware, power_of_two)")
+    parser.add_argument("--router-environment", type=str, default="sglang_router", help="Environment for the router")
     return parser.parse_args()
 
 
@@ -89,6 +92,9 @@ def main():
         "cuda_graph_max_bs": args.cuda_graph_max_bs,
         "grammar_backend": args.grammar_backend,
         "start_server_with_env_path": start_server_with_env_path,
+        "use_router": args.use_router,
+        "router_policy": args.router_policy,
+        "router_environment": args.router_environment,
     }
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".sh", delete=False) as temp_file:

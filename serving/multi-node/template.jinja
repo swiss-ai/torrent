@@ -1,15 +1,10 @@
 #!/bin/bash
 #SBATCH --job-name={{ job_name }}
-#SBATCH --cpus-per-task=288
-#SBATCH --gres=gpu:4
-#SBATCH --account=a-infra01
-#SBATCH --ntasks-per-node=1
+#SBATCH --account=infra01
 #SBATCH --time=04:00:00
 #SBATCH --exclusive
 #SBATCH --nodes={{ nodes }}
-#SBATCH --ntasks={{ nodes }}
 #SBATCH --partition={{ partition }}
-#SBATCH --environment={{ environment }}
 #SBATCH --output=logs/%j/log.out
 #SBATCH --error=logs/%j/log.err
 
@@ -25,6 +20,10 @@ NODES_PER_WORKER={{ nodes_per_worker }}
 WORKERS={{ workers }}
 LOG_DIR="${SLURM_SUBMIT_DIR}/logs/${SLURM_JOB_ID}"
 START_SERVER_WITH_ENV_PATH={{ start_server_with_env_path }}
+ENVIRONMENT={{ environment }}
+USE_ROUTER={{ use_router | lower }}
+ROUTER_ENVIRONMENT={{ router_environment }}
+ROUTER_POLICY={{ router_policy }}
 
 {% raw %}
 
@@ -57,7 +56,7 @@ for worker_id in $(seq 0 $((WORKERS - 1))); do
     
     # Get worker host IP (first node of the worker)
     worker_host_node=${worker_nodes[0]}
-    worker_host_ip=$(srun --nodes=1 --ntasks=1 -w ${worker_host_node} ip route get $(getent ahosts ${worker_host_node} | grep STREAM | head -1 | awk '{print $1}') | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}')
+    worker_host_ip=$(srun --nodes=1 --ntasks=1 -w ${worker_host_node} hostname -i)
     if [ -z "$worker_host_ip" ]; then
         echo "Error: Could not retrieve IP address for worker $worker_id host ${worker_host_node}"
         exit 1
@@ -93,11 +92,38 @@ for worker_id in $(seq 0 $((WORKERS - 1))); do
         global_node_idx=$((start_node + local_rank))
         node=${nodes[$global_node_idx]}
         
-        cmd="srun --nodes=1 --ntasks=1 --nodelist=$node --container-writable --output=${LOG_DIR}/worker${worker_id}_node${local_rank}_${node}.out --error=${LOG_DIR}/worker${worker_id}_node${local_rank}_${node}.err ${START_SERVER_WITH_ENV_PATH} --model-path ${MODEL_PATH} --host 0.0.0.0 --port 5000 --dist-init-addr ${worker_host_ip}:5757 --nnodes ${NODES_PER_WORKER} --node-rank ${local_rank} --tp-size ${TP_SIZE} --dp-size ${DP_SIZE} --ep-size ${EP_SIZE} --cuda-graph-max-bs ${CUDA_GRAPH_MAX_BS} --grammar-backend ${GRAMMAR_BACKEND} --decode-log-interval 1 --trust-remote-code"
+        cmd="srun --nodes=1 --ntasks=1 --nodelist=$node --container-writable --environment=$ENVIRONMENT --output=${LOG_DIR}/worker${worker_id}_node${local_rank}_${node}.out --error=${LOG_DIR}/worker${worker_id}_node${local_rank}_${node}.err ${START_SERVER_WITH_ENV_PATH} --model-path ${MODEL_PATH} --host 0.0.0.0 --port 5000 --dist-init-addr ${worker_host_ip}:5757 --nnodes ${NODES_PER_WORKER} --node-rank ${local_rank} --tp-size ${TP_SIZE} --dp-size ${DP_SIZE} --ep-size ${EP_SIZE} --cuda-graph-max-bs ${CUDA_GRAPH_MAX_BS} --grammar-backend ${GRAMMAR_BACKEND} --decode-log-interval 1 --trust-remote-code"
         echo "$cmd"
         $cmd &
     done
 done
+
+# Launch router if enabled and multiple workers
+if [ "$USE_ROUTER" = "true" ] && [ $WORKERS -gt 1 ]; then
+    router_host_node=${nodes[0]}
+    router_host_ip=${worker_head_ips[0]}
+    
+    # Build worker URLs string for router
+    worker_urls_str=""
+    for url in "${worker_urls[@]}"; do
+        worker_urls_str="$worker_urls_str $url"
+    done
+    
+    echo "Starting router on ${router_host_node} (${router_host_ip})"
+    echo "Router worker URLs:${worker_urls_str}"
+    
+    srun --nodes=1 --ntasks=1 --nodelist=$router_host_node --container-writable --environment=$ROUTER_ENVIRONMENT --cpus-per-task=50 --overlap --output=${LOG_DIR}/router_${router_host_node}.out --error=${LOG_DIR}/router_${router_host_node}.err \
+        bash --norc --noprofile -c "\
+set -ex
+
+export no_proxy=\"0.0.0.0,\$no_proxy\"
+export NO_PROXY=\"0.0.0.0,\$NO_PROXY\"
+
+python -m sglang_router.launch_router --host 0.0.0.0 --port 30000 --worker-urls${worker_urls_str} --model-path ${MODEL_PATH} --policy ${ROUTER_POLICY}" &
+    
+    echo ""
+    echo "Router URL: http://${router_host_ip}:30000"
+fi
 
 echo ""
 echo "To connect to the host node:"
